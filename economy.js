@@ -51,6 +51,12 @@ function processEconomyTick(state) {
   // 3. GDP Growth calculation (causal)
   let growth = 1.2 * m.growthPotential;
 
+  // President economy skill bonus
+  if (typeof getSkillBonus === 'function') {
+    growth += getSkillBonus('economy') * 8;
+    growth += getSkillBonus('management') * 3;
+  }
+
   // Positive factors
   growth += (e.industrialProduction - 50) * 0.025;
   growth += (e.foreignInvestment - 15) * 0.02;

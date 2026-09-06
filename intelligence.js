@@ -60,10 +60,11 @@ function startCovertOperation(state, type, targetId) {
 
   state.economy.budget -= cost;
 
-  // Success base chance
+  // Success base chance + intelligence skill
   let baseChance = 0.4 + (intel.foreign / 100) * 0.35 + (intel.level / 100) * 0.2;
   baseChance += m.covertSuccessBonus;
   baseChance -= (target.stability || 50) / 300;
+  if (typeof getSkillBonus === 'function') baseChance += getSkillBonus('intelligence') * 10;
   baseChance = Math.max(0.12, Math.min(0.82, baseChance));
 
   const op = {

@@ -73,11 +73,12 @@ function proposeAgreement(state, targetId, agreementType) {
 
   state.economy.budget -= cost;
 
-  // Success chance based on relations + difficulty
+  // Success chance based on relations + difficulty + diplomacy skill
   const m = getDifficultyMultipliers();
   const rel = state.diplomacy.relations[targetId] || 40;
   let chance = 0.35 + (rel / 100) * 0.5;
   chance -= (m.aiAggressiveness - 1) * 0.1;
+  if (typeof getSkillBonus === 'function') chance += getSkillBonus('diplomacy') * 12;
   chance = Math.max(0.2, Math.min(0.9, chance));
 
   if (Math.random() < chance) {
