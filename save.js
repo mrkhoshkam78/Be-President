@@ -32,7 +32,7 @@ function loadGame() {
     if (!state.meta || !state.economy || !state.time) {
       return { success: false, message: 'فایل ذخیره نامعتبر' };
     }
-    // Simple migration from v2.0
+    // Migrations
     if (!state.meta.version || state.meta.version < '2.1') {
       if (!state.news) state.news = [];
       if (state.newsUnread == null) state.newsUnread = 0;
@@ -40,6 +40,16 @@ function loadGame() {
         state.diplomacy.relationsMode = state.meta.difficulty === 'realistic' ? 'multi' : 'simple';
       }
       state.meta.version = '2.1';
+    }
+    if (!state.meta.version || state.meta.version < '2.2') {
+      if (!state.economy.loansTaken) state.economy.loansTaken = [];
+      if (!state.economy.loansGiven) state.economy.loansGiven = [];
+      if (state.economy.creditRating == null) {
+        const d = state.economy.nationalDebt || 0;
+        const g = state.economy.gdp || 100;
+        state.economy.creditRating = Math.round(Math.max(25, Math.min(95, 75 - (d / Math.max(1, g)) * 20)));
+      }
+      state.meta.version = '2.2';
     }
     setState(state);
     hideStartScreens();

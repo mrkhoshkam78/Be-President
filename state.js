@@ -1,6 +1,16 @@
-// state.js - Central Game State Management (v2.1)
+// state.js - Central Game State Management (v2.2)
 
 let GameState = null;
+
+function calculateInitialCredit(debt, gdp, economyPower) {
+  const ratio = gdp > 0 ? (debt / gdp) * 100 : 50;
+  let score = 75;
+  if (ratio > 120) score -= 25;
+  else if (ratio > 80) score -= 15;
+  else if (ratio > 50) score -= 8;
+  score += (economyPower - 55) * 0.25;
+  return Math.round(Math.max(25, Math.min(95, score)));
+}
 
 function createInitialState(difficultyId, countryId) {
   const diff = DIFFICULTY[difficultyId] || DIFFICULTY.medium;
@@ -37,7 +47,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '2.1',
+      version: '2.2',
       isRunning: false,
       speed: 1,
       tickCount: 0,
@@ -96,8 +106,12 @@ function createInitialState(difficultyId, countryId) {
       naturalResources: Math.round(country.naturalResources * resourcesScale),
       resourceIncome: 12,
       infrastructure: country.infrastructure,
-      stability: country.stability
+      stability: country.stability,
+      creditRating: calculateInitialCredit(debt, gdp, country.economyPower),
+      loansTaken: [],
+      loansGiven: []
     },
+
 
     population: {
       satisfaction: country.satisfaction,

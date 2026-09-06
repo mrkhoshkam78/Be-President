@@ -11,7 +11,7 @@
 <!-- ===== START ===== -->
 <div id="start-screen" class="start-screen">
   <h1>Be President</h1>
-  <p class="subtitle">شبیه‌ساز استراتژیک مدیریت کشور — نسخه ۲</p>
+  <p class="subtitle">شبیه‌ساز استراتژیک مدیریت کشور — نسخه ۲.۲</p>
   <button class="btn-main" onclick="goToCountrySelect()">شروع بازی جدید</button>
   <button id="btn-continue" class="btn-ghost" style="display:none" onclick="actionLoad()">ادامه بازی قبلی</button>
 </div>
@@ -122,6 +122,7 @@
               <h4>🧠 مشاور</h4>
               <div id="map-advisor-mini" class="muted">—</div>
             </div>
+            <div id="map-country-detail" class="country-detail-panel" style="display:none"></div>
           </div>
         </div>
       </div>
@@ -190,7 +191,7 @@
         <div class="panel-title">💰 اقتصاد</div>
         <div class="stat-grid" id="eco-stats"></div>
         <div class="section">
-          <h3>اقدامات</h3>
+          <h3>اقدامات اقتصادی</h3>
           <div class="form-row">
             <label>نرخ مالیات:</label>
             <input type="range" id="tax-slider" min="8" max="45" value="22" oninput="document.getElementById('tax-value').textContent=this.value+'%'" />
@@ -202,6 +203,58 @@
             <input type="number" id="infra-amount" value="10" min="5" max="50" />
             <button class="btn" onclick="actionInvestInfra()">شروع پروژه</button>
           </div>
+        </div>
+        <div class="section loan-section">
+          <h3>💳 سیستم وام و بدهی</h3>
+          <div id="credit-rating-box" style="margin-bottom:0.8rem"></div>
+          <div class="loan-form">
+            <h4>📥 دریافت وام</h4>
+            <div class="form-row">
+              <label>منبع:</label>
+              <select id="loan-source">
+                <option value="domestic_bank">بانک داخلی</option>
+                <option value="imf">صندوق بین‌المللی (IMF)</option>
+                <option value="foreign_country">کشور خارجی</option>
+              </select>
+            </div>
+            <div class="form-row" id="loan-source-country-row" style="display:none">
+              <label>کشور وام‌دهنده:</label>
+              <select id="loan-source-country"></select>
+            </div>
+            <div class="form-row">
+              <label>مبلغ:</label>
+              <input type="number" id="loan-amount" value="20" min="5" max="200" step="5" oninput="previewLoanTaken()" />
+            </div>
+            <div class="form-row">
+              <label>مدت (سال):</label>
+              <input type="number" id="loan-years" value="5" min="2" max="15" oninput="previewLoanTaken()" />
+            </div>
+            <div id="loan-taken-preview" class="loan-preview">—</div>
+            <button class="btn btn-success" onclick="actionRequestLoan()">دریافت وام</button>
+          </div>
+          <div class="loan-form" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-color:#7dd3fc">
+            <h4 style="color:#0284c7">📤 اعطای وام به کشور دیگر</h4>
+            <div class="form-row">
+              <label>کشور مقصد:</label>
+              <select id="loan-target-country"></select>
+            </div>
+            <div class="form-row">
+              <label>مبلغ:</label>
+              <input type="number" id="loan-give-amount" value="10" min="3" max="80" step="1" oninput="previewLoanGiven()" />
+            </div>
+            <div class="form-row">
+              <label>بهره (%):</label>
+              <input type="number" id="loan-give-rate" value="5" min="2" max="12" step="0.5" oninput="previewLoanGiven()" />
+            </div>
+            <div class="form-row">
+              <label>مدت (سال):</label>
+              <input type="number" id="loan-give-years" value="5" min="2" max="12" oninput="previewLoanGiven()" />
+            </div>
+            <div id="loan-given-preview" class="loan-preview">—</div>
+            <button class="btn" onclick="actionGiveLoan()">اعطای وام</button>
+          </div>
+          <h4 style="margin:1rem 0 0.5rem">📋 وام‌های فعال</h4>
+          <div id="loans-list"></div>
         </div>
       </div>
 

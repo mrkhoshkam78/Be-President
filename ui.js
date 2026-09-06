@@ -111,7 +111,8 @@ function updateMap(state) {
     const glowClass = r >= 70 ? 'neon-ally' : r <= 30 ? 'neon-hostile' : 'neon-neutral';
     html += `
       <div class="map-node ${glowClass}" data-country="${c.id}" style="top:${pos.top}%;left:${pos.left}%;"
-           title="${c.name}" onclick="onMapCountryClick('${c.id}')">
+           title="${c.name}" onclick="onMapCountryClick('${c.id}')"
+           onmouseenter="onMapCountryHover('${c.id}', true)" onmouseleave="onMapCountryHover('${c.id}', false)">
         <div class="node-glow"></div>
         <div class="node-flag">${c.flag}</div>
         <div class="node-name">${c.name}</div>
@@ -188,20 +189,42 @@ function updateEconomyPanel(state) {
   const e = state.economy;
   const box = $('eco-stats');
   if (box) {
+    const rating = typeof getCreditRatingLabel === 'function'
+      ? getCreditRatingLabel(e.creditRating || 60)
+      : { label: String(e.creditRating || '—'), class: 'rating-bbb' };
     box.innerHTML = [
       ['GDP', e.gdp.toFixed(1)], ['رشد', e.gdpGrowth.toFixed(2) + '%'],
       ['تورم', e.inflation.toFixed(1) + '%'], ['بیکاری', e.unemployment.toFixed(1) + '%'],
       ['بودجه', e.budget.toFixed(1)], ['درآمد', e.revenue.toFixed(1)],
       ['هزینه', e.spending.toFixed(1)], ['کسری', e.deficit.toFixed(1)],
       ['بدهی', e.nationalDebt.toFixed(1)], ['مالیات', e.taxRate + '%'],
-      ['صادرات', e.exports.toFixed(1)], ['واردات', e.imports.toFixed(1)],
-      ['تراز', e.tradeBalance.toFixed(1)], ['ارز', e.currencyStrength],
-      ['سرمایه‌گذاری', e.foreignInvestment.toFixed(1)], ['تولید', e.industrialProduction],
-      ['منابع', e.naturalResources], ['زیرساخت', e.infrastructure]
+      ['رتبه اعتباری', `<span class="rating-badge ${rating.class}">${rating.label}</span>`]
     ].map(([l, v]) => `<div class="stat-box"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
   }
-  const tax = $('tax-slider');
-  if (tax) { tax.value = e.taxRate; $('tax-value').textContent = e.taxRate + '%'; }
+  // Credit box
+  const cr = $('credit-rating-box');
+  if (cr) {
+    const rating = typeof getCreditRatingLabel === 'function'
+      ? getCreditRatingLabel(e.creditRating || 60)
+      : { label: String(e.creditRating || '—'), class: '' };
+    const ratio = e.gdp > 0 ? ((e.nationalDebt / e.gdp) * 100).toFixed(0) : '—';
+    cr.innerHTML = `<div class="list-card cat-economy">
+      <div class="list-card-header">
+        <span class="ico">📊</span>
+        <span>رتبه اعتباری کشور</span>
+        <span class="rating-badge ${rating.class}">${rating.label}</span>
+      </div>
+      <div class="list-card-meta">
+        <span>امتیاز: <strong>${e.creditRating || '—'}</strong></span>
+        <span>نسبت بدهی به GDP: <strong>${ratio}%</strong></span>
+      </div>
+    </div>`;
+  }
+  // Fill loan country selects
+  fillLoanCountrySelects(state);
+  renderLoansList(state);
+  previewLoanTaken();
+  previewLoanGiven();
 }
 
 function updatePopulationPanel(state) {
@@ -262,24 +285,44 @@ function updateDiplomacyPanel(state) {
       const country = getCountryById(id) || COUNTRIES.find(c => c.id === id);
       let extra = '';
       if (isMulti && typeof val === 'object') {
-        extra = `<div class="rel-dims muted" style="font-size:0.7rem;margin-top:2px">
-          سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0} · تهدید ${val.threatLevel|0}
+        extra = `<div class="list-card-meta" style="font-size:0.72rem">
+          سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0}
         </div>`;
       }
-      return `<div class="rel-row">
-        <span>${country?.flag || ''}</span>
-        <span class="name">${country?.name || id}</span>
-        <span class="${status.class}">${overall.toFixed(0)} — ${status.text}</span>
-        <button class="btn-sm" onclick="actionImproveRelation('${id}')">بهبود</button>
+      const barClass = overall >= 70 ? 'excellent' : overall >= 55 ? 'good' : overall >= 40 ? 'neutral' : overall >= 25 ? 'poor' : 'hostile';
+      const badgeClass = overall >= 70 ? 'ally' : overall <= 30 ? 'hostile' : 'neutral';
+      return `<div class="list-card cat-diplomacy">
+        <div class="list-card-header">
+          <span class="ico">${country?.flag || '🌐'}</span>
+          <span>${country?.name || id}</span>
+          <span class="status-badge ${badgeClass}" style="margin-right:auto">${status.text}</span>
+        </div>
+        <div class="list-card-meta">
+          <span>رابطه: <strong>${overall.toFixed(0)}</strong></span>
+        </div>
+        <div class="rel-bar-wrap"><div class="rel-bar ${barClass}" style="width:${Math.min(100, overall)}%"></div></div>
         ${extra}
+        <div class="list-card-actions">
+          <button class="btn" onclick="actionImproveRelation('${id}')">بهبود رابطه</button>
+        </div>
       </div>`;
     }).join('');
   }
   const agr = $('agreements-list');
   if (agr) {
-    if (!state.diplomacy.agreements.length) agr.innerHTML = '<span class="muted">توافقی نیست</span>';
+    if (!state.diplomacy.agreements.length) agr.innerHTML = '<span class="muted">توافقی فعال نیست</span>';
     else agr.innerHTML = state.diplomacy.agreements.map(a =>
-      `<div>${getAgreementName(a.type)} با ${a.targetName}</div>`
+      `<div class="list-card cat-diplomacy">
+        <div class="list-card-header">
+          <span class="ico">🌐</span>
+          <span>${getAgreementName(a.type)} با ${a.targetName || a.target}</span>
+          <span class="status-badge active">فعال ✅</span>
+        </div>
+        <div class="list-card-meta">
+          ${a.value ? `<span>ارزش: <strong>${a.value}</strong></span>` : ''}
+          ${a.years ? `<span>مدت: ${a.years} سال</span>` : ''}
+        </div>
+      </div>`
     ).join('');
   }
 }
@@ -289,11 +332,19 @@ function updateSanctionsPanel(state) {
   const list = $('sanctions-list');
   if (!list) return;
   if (!state.diplomacy.sanctions.length) {
-    list.innerHTML = '<span class="muted positive">هیچ تحریمی فعال نیست</span>';
+    list.innerHTML = '<div class="list-card" style="border-color:#86efac"><div class="list-card-header"><span class="ico">✅</span><span>هیچ تحریمی فعال نیست</span></div></div>';
   } else {
     list.innerHTML = state.diplomacy.sanctions.map(s =>
-      `<div style="margin-bottom:0.5rem">تحریم از ${s.fromName || s.from} (شدت ${s.severity})
-       <button class="btn-sm" onclick="actionLiftSanction('${s.from}')">مذاکره رفع</button></div>`
+      `<div class="list-card cat-crisis">
+        <div class="list-card-header">
+          <span class="ico">🚫</span>
+          <span>تحریم از ${s.fromName || s.from}</span>
+          <span class="status-badge hostile">شدت ${s.severity}</span>
+        </div>
+        <div class="list-card-actions">
+          <button class="btn" onclick="actionLiftSanction('${s.from}')">مذاکره رفع تحریم</button>
+        </div>
+      </div>`
     ).join('');
   }
 }
@@ -530,18 +581,64 @@ function actionLoad() {
 function onMapCountryClick(countryId) {
   const state = getState();
   if (!state) return;
-  // Highlight and show quick info; switch to diplomacy with focus
   document.querySelectorAll('.map-node').forEach(n => n.classList.remove('map-selected'));
   const node = document.querySelector(`.map-node[data-country="${countryId}"]`);
   if (node) node.classList.add('map-selected');
-  const name = typeof getCountryName === 'function' ? getCountryName(countryId) : countryId;
-  const rel = state.diplomacy.relations[countryId];
-  const val = typeof getRelationValue === 'function' ? getRelationValue(rel) : 50;
-  showToast(`${name} — روابط: ${Math.round(val)}`, 'info');
+
+  const panel = $('map-country-detail');
+  if (!panel) return;
+
+  const isPlayer = countryId === state.country.id;
+  const country = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : [])
+    .find(c => c.id === countryId) || state.country;
+
+  let relHtml = '';
+  let agreementsHtml = '';
+  let sanctionsHtml = '';
+
+  if (isPlayer) {
+    relHtml = '<span class="status-badge ally">کشور شما</span>';
+  } else {
+    const rel = state.diplomacy.relations[countryId];
+    const val = typeof getRelationValue === 'function' ? getRelationValue(rel) : (typeof rel === 'number' ? rel : 50);
+    const status = getRelationStatus(val);
+    const barClass = val >= 70 ? 'excellent' : val >= 55 ? 'good' : val >= 40 ? 'neutral' : val >= 25 ? 'poor' : 'hostile';
+    relHtml = `<div class="list-card-meta"><span>رابطه: <strong>${Math.round(val)}</strong> — ${status.text}</span></div>
+      <div class="rel-bar-wrap"><div class="rel-bar ${barClass}" style="width:${Math.min(100,val)}%"></div></div>`;
+  }
+
+  const agreements = (state.diplomacy.agreements || []).filter(a => a.target === countryId || a.targetId === countryId);
+  if (agreements.length) {
+    agreementsHtml = '<div style="margin-top:0.5rem"><strong>توافق‌ها:</strong> ' +
+      agreements.map(a => getAgreementName(a.type)).join('، ') + '</div>';
+  }
+  const sanctions = (state.diplomacy.sanctions || []).filter(s => s.from === countryId || s.to === countryId);
+  if (sanctions.length) {
+    sanctionsHtml = '<div style="margin-top:0.35rem;color:var(--danger)"><strong>تحریم:</strong> فعال (' + sanctions.length + ')</div>';
+  }
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <h3>${country.flag || ''} ${country.name}</h3>
+    <div class="list-card-meta" style="flex-direction:column;align-items:stretch;gap:0.35rem">
+      <div class="tip-row"><span>GDP پایه</span><strong>${country.baseGDP || '—'}</strong></div>
+      <div class="tip-row"><span>جمعیت</span><strong>${country.population ? (country.population/1e6).toFixed(0)+'M' : '—'}</strong></div>
+      <div class="tip-row"><span>قدرت نظامی</span><strong>${country.militaryPower || (country.military ? '—' : '—')}</strong></div>
+      <div class="tip-row"><span>قدرت اقتصادی</span><strong>${country.economyPower || '—'}</strong></div>
+      <div class="tip-row"><span>منطقه</span><strong>${country.region || '—'}</strong></div>
+    </div>
+    ${relHtml}
+    ${agreementsHtml}
+    ${sanctionsHtml}
+    ${!isPlayer ? `<div class="list-card-actions" style="margin-top:0.6rem">
+      <button class="btn" onclick="actionImproveRelation('${countryId}')">بهبود رابطه</button>
+      <button class="btn btn-outline" onclick="showPanel('diplomacy')">دیپلماسی</button>
+    </div>` : ''}
+  `;
 }
 
 function onMapCountryHover(countryId, entering) {
-  // reserved for future tooltip; class handled by CSS :hover
+  // CSS :hover handles visual; optional future tooltip
 }
 
 
@@ -844,16 +941,20 @@ function renderNewsFeed() {
   } else if (currentNewsFilter !== 'all') {
     items = items.filter(n => n.category === currentNewsFilter);
   }
+  const catLabels = {
+    economy: '💰 اقتصادی', politics: '🏛️ سیاسی', military: '⚔️ نظامی',
+    diplomacy: '🌐 دیپلماتیک', crisis: '⚠️ بحران', tech: '🔬 فناوری', general: '📰 عمومی'
+  };
   feed.innerHTML = items.map(n => `
     <div class="news-item ${n.important ? 'news-important' : ''} ${n.read ? 'read' : 'unread'}" onclick="openNewsItem('${n.id}')">
-      <div class="news-icon">${n.icon}</div>
+      <div class="news-icon">${n.icon || '📰'}</div>
       <div class="news-body">
         <div class="news-title">${n.title}</div>
-        <div class="news-summary">${n.summary}</div>
+        <div class="news-summary">${n.summary || ''}</div>
         <div class="news-meta">
-          <span>${n.year}/${String(n.month).padStart(2,'0')}</span>
-          <span class="news-cat">${n.type === 'domestic' ? 'داخلی' : 'جهانی'} · ${n.category}</span>
-          ${n.important ? '<span class="breaking">فوری</span>' : ''}
+          <span>📅 ${n.year}/${String(n.month).padStart(2,'0')}</span>
+          <span class="news-cat">${n.type === 'domestic' ? 'داخلی' : 'جهانی'} · ${catLabels[n.category] || n.category}</span>
+          ${(n.countries && n.countries.length) ? '<span>🌍 مرتبط</span>' : ''}
         </div>
       </div>
     </div>
@@ -911,3 +1012,140 @@ window.executeSelectedAction = executeSelectedAction;
 window.filterNews = filterNews;
 window.openNewsItem = openNewsItem;
 window.markAllNewsReadUI = markAllNewsReadUI;
+
+
+// ========== LOAN UI (v2.2) ==========
+function fillLoanCountrySelects(state) {
+  if (!state) return;
+  const ids = Object.keys(state.diplomacy.relations || {});
+  const opts = ids.map(id => {
+    const c = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : []).find(x => x.id === id);
+    return `<option value="${id}">${c ? c.flag + ' ' + c.name : id}</option>`;
+  }).join('');
+  const src = $('loan-source-country');
+  const tgt = $('loan-target-country');
+  if (src) src.innerHTML = opts;
+  if (tgt) tgt.innerHTML = opts;
+}
+
+function previewLoanTaken() {
+  const amount = parseFloat(($('loan-amount') || {}).value) || 20;
+  const years = parseInt(($('loan-years') || {}).value) || 5;
+  const source = ($('loan-source') || {}).value || 'domestic_bank';
+  const state = getState();
+  let rate = 5.5;
+  if (source === 'imf') rate = 3.2;
+  else if (source === 'foreign_country') rate = 4.0;
+  const credit = state?.economy?.creditRating || 60;
+  if (credit < 40) rate += 6;
+  else if (credit < 55) rate += 3.5;
+  else if (credit < 70) rate += 1.5;
+  else if (credit >= 85) rate -= 0.8;
+  rate = Math.round(rate * 10) / 10;
+  const monthly = typeof calcMonthlyPayment === 'function' ? calcMonthlyPayment(amount, rate, years) : (amount / (years * 12) * 1.2);
+  const total = Math.round(monthly * years * 12 * 10) / 10;
+  const el = $('loan-taken-preview');
+  if (el) el.innerHTML = `نرخ بهره تقریبی: <strong>${rate}%</strong> · قسط ماهانه: <strong>${monthly.toFixed(2)}</strong> · کل بازپرداخت: <strong>${total}</strong>`;
+  // Show/hide country select
+  const row = $('loan-source-country-row');
+  if (row) row.style.display = source === 'foreign_country' ? 'flex' : 'none';
+}
+
+function previewLoanGiven() {
+  const amount = parseFloat(($('loan-give-amount') || {}).value) || 10;
+  const years = parseInt(($('loan-give-years') || {}).value) || 5;
+  const rate = parseFloat(($('loan-give-rate') || {}).value) || 5;
+  const monthly = typeof calcMonthlyPayment === 'function' ? calcMonthlyPayment(amount, rate, years) : (amount / (years * 12) * 1.15);
+  const total = Math.round(monthly * years * 12 * 10) / 10;
+  const el = $('loan-given-preview');
+  if (el) el.innerHTML = `قسط ماهانه دریافتی: <strong>${monthly.toFixed(2)}</strong> · کل بازگشت: <strong>${total}</strong>`;
+}
+
+function actionRequestLoan() {
+  const state = getState();
+  if (!state) return;
+  const source = ($('loan-source') || {}).value || 'domestic_bank';
+  const amount = parseFloat(($('loan-amount') || {}).value) || 20;
+  const years = parseInt(($('loan-years') || {}).value) || 5;
+  const opts = { source, amount, years };
+  if (source === 'foreign_country') {
+    opts.sourceCountryId = ($('loan-source-country') || {}).value;
+    const c = (PLAYABLE_COUNTRIES || []).find(x => x.id === opts.sourceCountryId);
+    opts.sourceName = c ? c.name : 'کشور خارجی';
+  }
+  const result = requestLoan(state, opts);
+  if (!result.success) { showToast(result.message, 'danger'); return; }
+  setState(result.state);
+  refreshUI();
+  showToast('وام دریافت شد', 'success');
+}
+
+function actionGiveLoan() {
+  const state = getState();
+  if (!state) return;
+  const targetCountryId = ($('loan-target-country') || {}).value;
+  const amount = parseFloat(($('loan-give-amount') || {}).value) || 10;
+  const years = parseInt(($('loan-give-years') || {}).value) || 5;
+  const rate = parseFloat(($('loan-give-rate') || {}).value) || 5;
+  const result = giveLoan(state, { targetCountryId, amount, years, rate });
+  if (!result.success) { showToast(result.message, 'danger'); return; }
+  setState(result.state);
+  refreshUI();
+  showToast('وام اعطا شد', 'success');
+}
+
+function renderLoansList(state) {
+  const box = $('loans-list');
+  if (!box) return;
+  const taken = (state.economy.loansTaken || []).filter(l => l.status === 'active' || l.status === 'defaulted');
+  const given = (state.economy.loansGiven || []).filter(l => l.status === 'active' || l.status === 'defaulted');
+  if (!taken.length && !given.length) {
+    box.innerHTML = '<span class="muted">وام فعالی وجود ندارد</span>';
+    return;
+  }
+  let html = '';
+  taken.forEach(l => {
+    const pct = l.monthsTotal ? Math.round((l.monthsPaid / l.monthsTotal) * 100) : 0;
+    html += `<div class="list-card cat-economy">
+      <div class="list-card-header">
+        <span class="ico">📥</span>
+        <span>وام از ${l.sourceName}</span>
+        <span class="status-badge ${l.status === 'active' ? 'active' : 'defaulted'}">${l.status === 'active' ? 'فعال' : 'نکول'}</span>
+      </div>
+      <div class="list-card-meta">
+        <span>مبلغ: <strong>${l.amount}</strong></span>
+        <span>بهره: ${l.rate}%</span>
+        <span>قسط: ${l.monthlyPayment}</span>
+        <span>باقیمانده: ${l.remaining?.toFixed?.(1) || l.remaining}</span>
+      </div>
+      <div class="progress-bar"><div style="width:${pct}%"></div></div>
+    </div>`;
+  });
+  given.forEach(l => {
+    const pct = l.monthsTotal ? Math.round((l.monthsPaid / l.monthsTotal) * 100) : 0;
+    html += `<div class="list-card cat-diplomacy">
+      <div class="list-card-header">
+        <span class="ico">📤</span>
+        <span>وام به ${l.targetFlag || ''} ${l.targetName}</span>
+        <span class="status-badge ${l.status === 'active' ? 'active' : l.status === 'defaulted' ? 'defaulted' : 'paid'}">${l.status === 'active' ? 'فعال' : l.status === 'defaulted' ? 'نکول' : 'پرداخت‌شده'}</span>
+      </div>
+      <div class="list-card-meta">
+        <span>مبلغ: <strong>${l.amount}</strong></span>
+        <span>بهره: ${l.rate}%</span>
+        <span>قسط دریافتی: ${l.monthlyPayment}</span>
+      </div>
+      <div class="progress-bar"><div style="width:${pct}%"></div></div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
+// Source select change
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id === 'loan-source') previewLoanTaken();
+});
+
+window.actionRequestLoan = actionRequestLoan;
+window.actionGiveLoan = actionGiveLoan;
+window.previewLoanTaken = previewLoanTaken;
+window.previewLoanGiven = previewLoanGiven;

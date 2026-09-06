@@ -14,8 +14,9 @@ function calculateRevenue(state) {
     state.resources.rare_earth * 0.18) * (e.currencyStrength / 100);
   const investmentRevenue = e.foreignInvestment * 0.04;
   const tradeRevenue = Math.max(0, e.exports - e.imports) * 0.15;
+  const loanIncome = getLoanInterestIncome(state);
 
-  return Math.round((taxBase + resourceRevenue + investmentRevenue + tradeRevenue) * 10) / 10;
+  return Math.round((taxBase + resourceRevenue + investmentRevenue + tradeRevenue + loanIncome) * 10) / 10;
 }
 
 function calculateSpending(state) {
@@ -26,8 +27,21 @@ function calculateSpending(state) {
   const social = state.population.satisfaction < 40 ? 18 : 12;
   const debtInterest = state.economy.nationalDebt * 0.035;
   const baseAdmin = 22;
+  // Monthly loan installment payments (taken loans)
+  let loanPayments = 0;
+  if (state.economy.loansTaken && state.economy.loansTaken.length) {
+    loanPayments = state.economy.loansTaken
+      .filter(l => l.status === 'active')
+      .reduce((sum, l) => sum + (l.monthlyPayment || 0), 0);
+  }
+  return Math.round((mil + intel + research + infra + social + debtInterest + baseAdmin + loanPayments) * 10) / 10;
+}
 
-  return Math.round((mil + intel + research + infra + social + debtInterest + baseAdmin) * 10) / 10;
+function getLoanInterestIncome(state) {
+  if (!state.economy.loansGiven || !state.economy.loansGiven.length) return 0;
+  return state.economy.loansGiven
+    .filter(l => l.status === 'active')
+    .reduce((sum, l) => sum + (l.monthlyPayment || 0) * 0.35, 0); // portion as interest income
 }
 
 function processEconomyTick(state) {
@@ -192,6 +206,9 @@ function processEconomyTick(state) {
   state.economy = e;
   state.population = pop;
 
+  // Process active loans (payments, defaults, credit rating)
+  processLoansTick(state);
+
   // History for charts (keep last 24 months)
   if (!state.history) state.history = { gdp: [], satisfaction: [], debt: [], events: [] };
   state.history.gdp.push(e.gdp);
@@ -262,3 +279,251 @@ function logAction(state, text) {
   });
   if (state.actionsLog.length > 50) state.actionsLog.pop();
 }
+
+// ========== LOAN / DEBT SYSTEM (v2.2) ==========
+
+function getCreditRatingLabel(score) {
+  if (score >= 85) return { label: 'AAA', class: 'rating-aaa' };
+  if (score >= 75) return { label: 'AA', class: 'rating-aa' };
+  if (score >= 65) return { label: 'A', class: 'rating-a' };
+  if (score >= 55) return { label: 'BBB', class: 'rating-bbb' };
+  if (score >= 45) return { label: 'BB', class: 'rating-bb' };
+  if (score >= 35) return { label: 'B', class: 'rating-b' };
+  return { label: 'CCC', class: 'rating-ccc' };
+}
+
+function updateCreditRating(state) {
+  const e = state.economy;
+  const ratio = e.gdp > 0 ? (e.nationalDebt / e.gdp) * 100 : 80;
+  let score = 78;
+  if (ratio > 150) score -= 30;
+  else if (ratio > 100) score -= 20;
+  else if (ratio > 70) score -= 12;
+  else if (ratio > 40) score -= 5;
+  score -= Math.max(0, e.inflation - 4) * 2.5;
+  score -= Math.max(0, e.deficit) * 0.4;
+  score += Math.max(0, e.gdpGrowth) * 1.5;
+  score += (e.stability - 50) * 0.15;
+  if (e.loansTaken) {
+    const activeDebt = e.loansTaken.filter(l => l.status === 'active').reduce((s, l) => s + l.remaining, 0);
+    score -= activeDebt * 0.08;
+  }
+  e.creditRating = Math.round(Math.max(20, Math.min(98, score)));
+  return e.creditRating;
+}
+
+function calcMonthlyPayment(principal, annualRate, years) {
+  const months = years * 12;
+  const r = annualRate / 100 / 12;
+  if (r <= 0) return Math.round((principal / months) * 100) / 100;
+  const payment = principal * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1);
+  return Math.round(payment * 100) / 100;
+}
+
+function requestLoan(state, opts) {
+  // opts: { source, amount, years, rate? }
+  if (!state.economy.loansTaken) state.economy.loansTaken = [];
+  const amount = Math.round(Math.max(5, Math.min(200, opts.amount || 20)) * 10) / 10;
+  const years = Math.max(2, Math.min(15, opts.years || 5));
+  const source = opts.source || 'domestic_bank';
+  const credit = state.economy.creditRating || 60;
+
+  // Base rate depends on source + credit
+  let baseRate = 4.5;
+  if (source === 'domestic_bank') baseRate = 5.5;
+  else if (source === 'foreign_country') baseRate = 4.0;
+  else if (source === 'imf') baseRate = 3.2;
+  // Credit penalty
+  if (credit < 40) baseRate += 6;
+  else if (credit < 55) baseRate += 3.5;
+  else if (credit < 70) baseRate += 1.5;
+  else if (credit >= 85) baseRate -= 0.8;
+
+  const rate = opts.rate != null ? opts.rate : Math.round(baseRate * 10) / 10;
+  const monthly = calcMonthlyPayment(amount, rate, years);
+  const totalRepay = Math.round(monthly * years * 12 * 10) / 10;
+
+  // Risk check
+  if (credit < 30 && source !== 'imf') {
+    return { success: false, message: 'رتبه اعتباری بسیار پایین — وام رد شد' };
+  }
+  if (state.economy.loansTaken.filter(l => l.status === 'active').length >= 5) {
+    return { success: false, message: 'حداکثر تعداد وام فعال رسیده است' };
+  }
+
+  const loan = {
+    id: 'loan_t_' + Date.now(),
+    direction: 'taken',
+    source,
+    sourceName: source === 'domestic_bank' ? 'بانک داخلی' : source === 'imf' ? 'صندوق بین‌المللی' : (opts.sourceName || 'کشور خارجی'),
+    sourceCountryId: opts.sourceCountryId || null,
+    amount,
+    rate,
+    years,
+    monthsTotal: years * 12,
+    monthsPaid: 0,
+    monthlyPayment: monthly,
+    remaining: totalRepay,
+    principalRemaining: amount,
+    status: 'active',
+    startedYear: state.time.year,
+    startedMonth: state.time.month
+  };
+
+  state.economy.loansTaken.push(loan);
+  state.economy.budget = Math.round((state.economy.budget + amount) * 10) / 10;
+  state.economy.nationalDebt = Math.round((state.economy.nationalDebt + amount) * 10) / 10;
+  updateCreditRating(state);
+
+  logAction(state, `وام ${amount} واحد از ${loan.sourceName} با بهره ${rate}٪ دریافت شد`);
+  if (typeof addNews === 'function') {
+    addNews(state, {
+      type: 'domestic',
+      category: 'economy',
+      icon: '💰',
+      title: `دریافت وام ${amount} میلیاردی از ${loan.sourceName}`,
+      summary: `دولت وام جدیدی به مبلغ ${amount} واحد با نرخ بهره سالانه ${rate} درصد و مدت بازپرداخت ${years} سال دریافت کرد. این اقدام بودجه کوتاه‌مدت را تقویت می‌کند اما بدهی ملی را افزایش می‌دهد.`,
+      important: amount >= 40,
+      countries: opts.sourceCountryId ? [opts.sourceCountryId] : []
+    });
+  }
+  return { success: true, loan, state };
+}
+
+function giveLoan(state, opts) {
+  // opts: { targetCountryId, amount, years, rate }
+  if (!state.economy.loansGiven) state.economy.loansGiven = [];
+  const amount = Math.round(Math.max(3, Math.min(80, opts.amount || 10)) * 10) / 10;
+  const years = Math.max(2, Math.min(12, opts.years || 5));
+  const rate = Math.round(Math.max(2, Math.min(12, opts.rate || 5)) * 10) / 10;
+  const targetId = opts.targetCountryId;
+  if (!targetId) return { success: false, message: 'کشور مقصد مشخص نشده' };
+  if (state.economy.budget < amount) {
+    return { success: false, message: 'بودجه کافی برای اعطای وام نیست' };
+  }
+  const target = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : [])
+    .find(c => c.id === targetId);
+  if (!target) return { success: false, message: 'کشور مقصد یافت نشد' };
+
+  const monthly = calcMonthlyPayment(amount, rate, years);
+  const totalRepay = Math.round(monthly * years * 12 * 10) / 10;
+
+  // Risk based on relation
+  const rawRel = state.diplomacy.relations[targetId];
+  const relVal = typeof getRelationValue === 'function' ? getRelationValue(rawRel) : (typeof rawRel === 'number' ? rawRel : 40);
+  const defaultRisk = relVal < 30 ? 0.25 : relVal < 50 ? 0.12 : 0.05;
+
+  const loan = {
+    id: 'loan_g_' + Date.now(),
+    direction: 'given',
+    targetCountryId: targetId,
+    targetName: target.name,
+    targetFlag: target.flag,
+    amount,
+    rate,
+    years,
+    monthsTotal: years * 12,
+    monthsPaid: 0,
+    monthlyPayment: monthly,
+    remaining: totalRepay,
+    principalRemaining: amount,
+    status: 'active',
+    defaultRisk,
+    startedYear: state.time.year,
+    startedMonth: state.time.month
+  };
+
+  state.economy.loansGiven.push(loan);
+  state.economy.budget = Math.round((state.economy.budget - amount) * 10) / 10;
+
+  // Improve economic relation slightly
+  if (typeof adjustRelation === 'function') {
+    adjustRelation(state, targetId, 3 + Math.min(5, amount / 15));
+  } else if (typeof state.diplomacy.relations[targetId] === 'number') {
+    state.diplomacy.relations[targetId] = Math.min(95, state.diplomacy.relations[targetId] + 4);
+  }
+
+  logAction(state, `وام ${amount} واحد به ${target.name} با بهره ${rate}٪ اعطا شد`);
+  if (typeof addNews === 'function') {
+    addNews(state, {
+      type: 'global',
+      category: 'diplomacy',
+      icon: '🤝',
+      title: `اعطای وام به ${target.name}`,
+      summary: `${state.country.name} وام ${amount} واحدی با نرخ ${rate} درصد به ${target.name} اعطا کرد. این اقدام می‌تواند روابط اقتصادی و نفوذ سیاسی را تقویت کند.`,
+      important: amount >= 25,
+      countries: [targetId]
+    });
+  }
+  return { success: true, loan, state };
+}
+
+function processLoansTick(state) {
+  const e = state.economy;
+  if (!e.loansTaken) e.loansTaken = [];
+  if (!e.loansGiven) e.loansGiven = [];
+
+  // Process taken loans (payments already in spending)
+  e.loansTaken.forEach(loan => {
+    if (loan.status !== 'active') return;
+    loan.monthsPaid++;
+    loan.remaining = Math.max(0, Math.round((loan.remaining - loan.monthlyPayment) * 10) / 10);
+    const interestPart = loan.principalRemaining * (loan.rate / 100 / 12);
+    loan.principalRemaining = Math.max(0, Math.round((loan.principalRemaining - (loan.monthlyPayment - interestPart)) * 10) / 10);
+    if (loan.monthsPaid >= loan.monthsTotal || loan.remaining <= 0.1) {
+      loan.status = 'paid';
+      loan.remaining = 0;
+      if (typeof addNews === 'function') {
+        addNews(state, {
+          type: 'domestic', category: 'economy', icon: '✅',
+          title: `بازپرداخت کامل وام ${loan.sourceName}`,
+          summary: `وام ${loan.amount} واحدی که از ${loan.sourceName} دریافت شده بود، به‌طور کامل بازپرداخت شد و فشار بدهی کاهش یافت.`,
+          important: false
+        });
+      }
+    }
+  });
+
+  // Process given loans (receive payments + default risk)
+  e.loansGiven.forEach(loan => {
+    if (loan.status !== 'active') return;
+    // Chance of default
+    if (Math.random() < (loan.defaultRisk || 0.05) / 12) {
+      loan.status = 'defaulted';
+      const loss = loan.principalRemaining;
+      e.budget = Math.round((e.budget - loss * 0.3) * 10) / 10; // partial recovery attempt cost
+      if (typeof adjustRelation === 'function') {
+        adjustRelation(state, loan.targetCountryId, -12);
+      } else if (typeof state.diplomacy.relations[loan.targetCountryId] === 'number') {
+        state.diplomacy.relations[loan.targetCountryId] = Math.max(5, state.diplomacy.relations[loan.targetCountryId] - 15);
+      }
+      if (typeof addNews === 'function') {
+        addNews(state, {
+          type: 'global', category: 'economy', icon: '⚠️',
+          title: `عدم بازپرداخت وام توسط ${loan.targetName}`,
+          summary: `${loan.targetName} از بازپرداخت وام ${loan.amount} واحدی خودداری کرد. این رویداد به روابط دوجانبه و اعتبار مالی آسیب زد.`,
+          important: true,
+          countries: [loan.targetCountryId]
+        });
+      }
+      return;
+    }
+    loan.monthsPaid++;
+    loan.remaining = Math.max(0, Math.round((loan.remaining - loan.monthlyPayment) * 10) / 10);
+    const interestPart = loan.principalRemaining * (loan.rate / 100 / 12);
+    loan.principalRemaining = Math.max(0, Math.round((loan.principalRemaining - (loan.monthlyPayment - interestPart)) * 10) / 10);
+    // Payment received is already partially counted in revenue via getLoanInterestIncome
+    if (loan.monthsPaid >= loan.monthsTotal || loan.remaining <= 0.1) {
+      loan.status = 'paid';
+      loan.remaining = 0;
+      if (typeof adjustRelation === 'function') {
+        adjustRelation(state, loan.targetCountryId, 5);
+      }
+    }
+  });
+
+  updateCreditRating(state);
+}
+
+// Hook into economy tick - call after main calculations
+

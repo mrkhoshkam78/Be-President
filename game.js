@@ -137,7 +137,10 @@ function processTick() {
     inflation: state.economy.inflation,
     unemployment: state.economy.unemployment,
     satisfaction: state.population.satisfaction,
-    gdpGrowth: state.economy.gdpGrowth
+    gdpGrowth: state.economy.gdpGrowth,
+    debt: state.economy.nationalDebt,
+    gdp: state.economy.gdp,
+    creditRating: state.economy.creditRating
   };
 
   state.time.month += 1;

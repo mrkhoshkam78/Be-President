@@ -202,19 +202,20 @@ function markAllNewsRead(state) {
 
 function generateContextualNews(state, prevSnapshot) {
   if (!prevSnapshot) return;
-  if (state.economy.inflation > 7 && prevSnapshot.inflation <= 7) {
+  const e = state.economy;
+  if (e.inflation > 7 && prevSnapshot.inflation <= 7) {
     addNews(state, {
       type: 'domestic', category: 'economy', icon: '📈',
       title: 'افزایش تورم نگرانی‌های اقتصادی را افزایش داد',
-      summary: `تورم به ${state.economy.inflation.toFixed(1)}٪ رسید.`,
-      important: state.economy.inflation > 10
+      summary: `نرخ تورم به ${e.inflation.toFixed(1)} درصد رسید. کارشناسان هشدار می‌دهند که ادامه این روند می‌تواند قدرت خرید خانوارها را کاهش دهد و فشار بر سیاست‌های پولی را افزایش دهد.`,
+      important: e.inflation > 10
     });
   }
-  if (state.economy.unemployment > 12 && prevSnapshot.unemployment <= 12) {
+  if (e.unemployment > 12 && prevSnapshot.unemployment <= 12) {
     addNews(state, {
       type: 'domestic', category: 'economy', icon: '👷',
       title: 'بیکاری به سطح نگران‌کننده رسید',
-      summary: `نرخ بیکاری ${state.economy.unemployment.toFixed(1)}٪ گزارش شد.`,
+      summary: `نرخ بیکاری ${e.unemployment.toFixed(1)} درصد گزارش شد. افزایش بیکاری می‌تواند رضایت اجتماعی را تحت تأثیر قرار دهد و هزینه‌های حمایتی دولت را بالا ببرد.`,
       important: true
     });
   }
@@ -222,15 +223,34 @@ function generateContextualNews(state, prevSnapshot) {
     addNews(state, {
       type: 'domestic', category: 'politics', icon: '📢',
       title: 'کاهش رضایت عمومی در کشور',
-      summary: 'نظرسنجی‌ها نشان‌دهنده افت اعتماد به دولت است.',
+      summary: 'نتایج نظرسنجی‌های اخیر نشان‌دهنده افت قابل توجه اعتماد عمومی به دولت است. تحلیل‌گران عوامل اقتصادی و اجتماعی را در این روند مؤثر می‌دانند.',
       important: true
     });
   }
-  if (state.economy.gdpGrowth > 4 && prevSnapshot.gdpGrowth <= 4) {
+  if (e.gdpGrowth > 4 && prevSnapshot.gdpGrowth <= 4) {
     addNews(state, {
       type: 'domestic', category: 'economy', icon: '📊',
       title: 'رشد اقتصادی امیدوارکننده ثبت شد',
-      summary: `رشد تولید ناخالص داخلی به ${state.economy.gdpGrowth.toFixed(1)}٪ رسید.`
+      summary: `رشد تولید ناخالص داخلی به ${e.gdpGrowth.toFixed(1)} درصد رسید. این عملکرد مثبت می‌تواند سرمایه‌گذاری خارجی و اشتغال را در ماه‌های آینده تقویت کند.`
+    });
+  }
+  // Debt / credit news
+  const debtRatio = e.gdp > 0 ? (e.nationalDebt / e.gdp) * 100 : 0;
+  const prevRatio = prevSnapshot.gdp > 0 ? (prevSnapshot.debt / prevSnapshot.gdp) * 100 : 0;
+  if (debtRatio > 90 && prevRatio <= 90) {
+    addNews(state, {
+      type: 'domestic', category: 'economy', icon: '💳',
+      title: 'افزایش نگرانی‌ها درباره رشد بدهی ملی',
+      summary: `نسبت بدهی به تولید ناخالص داخلی از سطح هشدار عبور کرد. افزایش هزینه‌های دولتی و اتکا به منابع قرضی می‌تواند رتبه اعتباری کشور را تحت فشار قرار دهد.`,
+      important: true
+    });
+  }
+  if ((e.creditRating || 70) < 45 && (prevSnapshot.creditRating || 70) >= 45) {
+    addNews(state, {
+      type: 'domestic', category: 'economy', icon: '📉',
+      title: 'کاهش رتبه اعتباری کشور',
+      summary: `رتبه اعتباری به دلیل رشد بدهی و فشارهای اقتصادی تنزل یافت. این موضوع می‌تواند هزینه استقراض‌های آینده را افزایش دهد.`,
+      important: true
     });
   }
 }
