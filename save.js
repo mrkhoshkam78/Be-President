@@ -28,9 +28,18 @@ function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return { success: false, message: 'ذخیره‌ای یافت نشد' };
-    const state = JSON.parse(raw);
+    let state = JSON.parse(raw);
     if (!state.meta || !state.economy || !state.time) {
       return { success: false, message: 'فایل ذخیره نامعتبر' };
+    }
+    // Simple migration from v2.0
+    if (!state.meta.version || state.meta.version < '2.1') {
+      if (!state.news) state.news = [];
+      if (state.newsUnread == null) state.newsUnread = 0;
+      if (!state.diplomacy.relationsMode) {
+        state.diplomacy.relationsMode = state.meta.difficulty === 'realistic' ? 'multi' : 'simple';
+      }
+      state.meta.version = '2.1';
     }
     setState(state);
     hideStartScreens();
@@ -42,6 +51,7 @@ function loadGame() {
     return { success: false, message: 'خطا در بارگذاری' };
   }
 }
+
 
 function hasSave() { return !!localStorage.getItem(SAVE_KEY); }
 

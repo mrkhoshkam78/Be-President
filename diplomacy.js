@@ -1,29 +1,38 @@
-// diplomacy.js - Diplomacy, Agreements, Sanctions
+// diplomacy.js - Diplomacy, Agreements, Sanctions (v2.1 multi-dim support)
 
 function processDiplomacyTick(state) {
-  // Mild natural drift of relations based on relative power & interests
   const m = getDifficultyMultipliers();
+  const isMulti = state.diplomacy.relationsMode === 'multi';
+
   Object.keys(state.diplomacy.relations).forEach(cid => {
-    let rel = state.diplomacy.relations[cid];
-    const country = COUNTRIES.find(c => c.id === cid);
+    const country = getCountryById(cid);
     if (!country) return;
 
-    // Drift toward neutral slightly
-    if (rel > 55) rel -= 0.08;
-    if (rel < 40) rel += 0.06;
-
-    // AI aggressiveness affects negative drift
-    if (country.militaryPower > state.military.attackPower + 15) {
-      rel -= 0.05 * m.aiAggressiveness;
+    if (!isMulti) {
+      let rel = state.diplomacy.relations[cid];
+      if (rel > 55) rel -= 0.08;
+      if (rel < 40) rel += 0.06;
+      if (country.militaryPower > (state.military.attackPower || 40) + 15) {
+        rel -= 0.05 * m.aiAggressiveness;
+      }
+      state.diplomacy.relations[cid] = Math.round(Math.max(5, Math.min(95, rel)) * 10) / 10;
+    } else {
+      const r = state.diplomacy.relations[cid];
+      // Mild drift
+      if (r.political > 60) r.political -= 0.06;
+      if (r.political < 35) r.political += 0.05;
+      if (r.trust > 60) r.trust -= 0.04;
+      if (r.threatLevel > 50 && m.aiAggressiveness > 1) {
+        r.threatLevel = Math.min(90, r.threatLevel + 0.03 * m.aiAggressiveness);
+        r.political = Math.max(5, r.political - 0.04);
+      }
+      r.overall = Math.round(r.political * 0.3 + r.economic * 0.25 + r.military * 0.15 + r.trust * 0.2 + r.strategicInterest * 0.1);
     }
-
-    state.diplomacy.relations[cid] = Math.round(Math.max(5, Math.min(95, rel)) * 10) / 10;
   });
 
-  // Process sanction duration (simple: last until lifted or 18+ months)
   state.diplomacy.sanctions = state.diplomacy.sanctions.filter(s => {
     const age = state.time.totalDays - (s.startDay || 0);
-    if (age > 540) return false; // ~18 months auto expire for V1
+    if (age > 540) return false;
     return true;
   });
 
@@ -40,10 +49,22 @@ function improveRelations(state, targetId, amount = 5) {
   }
 
   state.economy.budget -= cost;
-  state.diplomacy.relations[targetId] = Math.min(95,
-    state.diplomacy.relations[targetId] + amount
-  );
+  modifyRelation(state, targetId, {
+    political: amount,
+    trust: amount * 0.6,
+    overall: amount
+  });
   logAction(state, `روابط با ${getCountryName(targetId)} بهبود یافت (+${amount})`);
+  if (typeof addNews === 'function') {
+    addNews(state, {
+      type: 'global',
+      category: 'diplomacy',
+      icon: '🤝',
+      title: `بهبود روابط با ${getCountryName(targetId)}`,
+      summary: `تلاش‌های دیپلماتیک منجر به بهبود روابط شد.`,
+      countries: [targetId]
+    });
+  }
   return { success: true, state };
 }
 
@@ -57,15 +78,15 @@ function proposeAgreement(state, targetId, agreementType) {
   };
   const cost = costMap[agreementType] || 10;
   const requiredRelation = agreementType === 'military' || agreementType === 'defense' ? 55 : 40;
+  const currentRel = getRelationValue(state.diplomacy.relations[targetId]);
 
   if (state.economy.budget < cost) {
     return { success: false, message: 'بودجه مذاکره کافی نیست' };
   }
-  if ((state.diplomacy.relations[targetId] || 0) < requiredRelation) {
+  if (currentRel < requiredRelation) {
     return { success: false, message: 'سطح روابط برای این توافق کافی نیست' };
   }
 
-  // Check existing
   const exists = state.diplomacy.agreements.find(a => a.targetId === targetId && a.type === agreementType);
   if (exists) {
     return { success: false, message: 'این توافق قبلاً وجود دارد' };
@@ -73,10 +94,8 @@ function proposeAgreement(state, targetId, agreementType) {
 
   state.economy.budget -= cost;
 
-  // Success chance based on relations + difficulty + diplomacy skill
   const m = getDifficultyMultipliers();
-  const rel = state.diplomacy.relations[targetId] || 40;
-  let chance = 0.35 + (rel / 100) * 0.5;
+  let chance = 0.35 + (currentRel / 100) * 0.5;
   chance -= (m.aiAggressiveness - 1) * 0.1;
   if (typeof getSkillBonus === 'function') chance += getSkillBonus('diplomacy') * 12;
   chance = Math.max(0.2, Math.min(0.9, chance));
@@ -90,14 +109,51 @@ function proposeAgreement(state, targetId, agreementType) {
       startDay: state.time.totalDays,
       benefits: getAgreementBenefits(agreementType)
     });
-    state.diplomacy.relations[targetId] = Math.min(95, rel + 6);
+
+    const relChanges = {
+      political: 4,
+      trust: 5,
+      overall: 6
+    };
+    if (agreementType === 'trade' || agreementType === 'economic' || agreementType === 'energy') {
+      relChanges.economic = 8;
+      relChanges.strategicInterest = 4;
+    }
+    if (agreementType === 'defense' || agreementType === 'military') {
+      relChanges.military = 10;
+      relChanges.trust = 8;
+      relChanges.threatLevel = -6;
+    }
+    modifyRelation(state, targetId, relChanges);
     applyAgreementEffects(state, agreementType, 1);
     logAction(state, `توافق ${agreementType} با ${getCountryName(targetId)} امضا شد`);
     state.alerts.push({ type: 'success', text: `توافق ${getAgreementName(agreementType)} با ${getCountryName(targetId)} نهایی شد.` });
+
+    if (typeof addNews === 'function') {
+      addNews(state, {
+        type: 'global',
+        category: 'diplomacy',
+        icon: '📜',
+        title: `توافق ${getAgreementName(agreementType)} با ${getCountryName(targetId)}`,
+        summary: `توافق جدید باعث گسترش همکاری شد.`,
+        countries: [targetId],
+        important: true
+      });
+    }
     return { success: true, agreed: true, state };
   } else {
-    state.diplomacy.relations[targetId] = Math.max(5, rel - 3);
+    modifyRelation(state, targetId, { political: -3, trust: -2, overall: -3 });
     logAction(state, `پیشنهاد توافق ${agreementType} با ${getCountryName(targetId)} رد شد`);
+    if (typeof addNews === 'function') {
+      addNews(state, {
+        type: 'global',
+        category: 'diplomacy',
+        icon: '❌',
+        title: `پیشنهاد توافق با ${getCountryName(targetId)} رد شد`,
+        summary: `مذاکرات به نتیجه نرسید و روابط اندکی تضعیف شد.`,
+        countries: [targetId]
+      });
+    }
     return { success: true, agreed: false, state };
   }
 }
@@ -144,32 +200,54 @@ function liftSanction(state, fromId) {
   if (state.economy.budget < cost) {
     return { success: false, message: 'هزینه مذاکره برای رفع تحریم بالا است' };
   }
-  if ((state.diplomacy.relations[fromId] || 0) < 35) {
+  const relVal = getRelationValue(state.diplomacy.relations[fromId]);
+  if (relVal < 35) {
     return { success: false, message: 'روابط برای مذاکره رفع تحریم کافی نیست' };
   }
 
   state.economy.budget -= cost;
   const removed = state.diplomacy.sanctions.splice(idx, 1)[0];
-  state.diplomacy.relations[fromId] = Math.min(90, (state.diplomacy.relations[fromId] || 40) + 8);
+  modifyRelation(state, fromId, { political: 8, economic: 6, trust: 5, overall: 8 });
   logAction(state, `تحریم از سوی ${removed.fromName || fromId} رفع شد`);
   state.alerts.push({ type: 'success', text: `تحریم ${removed.fromName} لغو شد.` });
+  if (typeof addNews === 'function') {
+    addNews(state, {
+      type: 'global',
+      category: 'diplomacy',
+      icon: '✅',
+      title: `رفع تحریم از سوی ${removed.fromName || getCountryName(fromId)}`,
+      summary: 'مذاکرات منجر به لغو تحریم شد.',
+      countries: [fromId],
+      important: true
+    });
+  }
   return { success: true, state };
 }
 
 function imposeSanction(state, targetId, severity = 1) {
-  // Player imposing sanction (rare in V1, mostly AI does it)
   if (state.diplomacy.sanctions.some(s => s.from === 'player' && s.target === targetId)) {
     return { success: false, message: 'قبلاً تحریم اعمال شده' };
   }
-  state.diplomacy.relations[targetId] = Math.max(5, (state.diplomacy.relations[targetId] || 40) - 15);
-  // For V1 we mainly track incoming sanctions
+  modifyRelation(state, targetId, {
+    political: -12,
+    economic: -15,
+    trust: -10,
+    threatLevel: 8,
+    overall: -12
+  });
   logAction(state, `تحریم علیه ${getCountryName(targetId)} اعلام شد`);
+  if (typeof addNews === 'function') {
+    addNews(state, {
+      type: 'global',
+      category: 'diplomacy',
+      icon: '🚫',
+      title: `اعلام تحریم علیه ${getCountryName(targetId)}`,
+      summary: 'اقدام تحریمی روابط اقتصادی و سیاسی را تحت تأثیر قرار داد.',
+      countries: [targetId],
+      important: true
+    });
+  }
   return { success: true, state };
-}
-
-function getCountryName(id) {
-  const c = COUNTRIES.find(x => x.id === id);
-  return c ? c.name : id;
 }
 
 function getRelationStatus(value) {

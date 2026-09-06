@@ -133,6 +133,13 @@ function processTick() {
   let state = getState();
   if (!state || state.meta.gameOver) return;
 
+  const prevSnap = {
+    inflation: state.economy.inflation,
+    unemployment: state.economy.unemployment,
+    satisfaction: state.population.satisfaction,
+    gdpGrowth: state.economy.gdpGrowth
+  };
+
   state.time.month += 1;
   if (state.time.month > 12) {
     state.time.month = 1;
@@ -157,6 +164,13 @@ function processTick() {
         if (p.effect.production) state.economy.industrialProduction = Math.min(95, state.economy.industrialProduction + p.effect.production);
         logAction(state, 'پروژه زیرساخت تکمیل شد');
         state.alerts.push({ type: 'success', text: 'پروژه زیرساخت به پایان رسید.' });
+        if (typeof addNews === 'function') {
+          addNews(state, {
+            type: 'domestic', category: 'economy', icon: '🏗️',
+            title: 'پروژه زیرساخت تکمیل شد',
+            summary: 'زیرساخت‌های جدید به بهره‌برداری رسید و ظرفیت تولید افزایش یافت.'
+          });
+        }
         addPresidentXP(5);
         return false;
       }
@@ -164,23 +178,25 @@ function processTick() {
     return true;
   });
 
+  if (typeof generateContextualNews === 'function') {
+    generateContextualNews(state, prevSnap);
+  }
+
   generateAdvisorSuggestions(state);
   checkGameOver(state);
 
   if (state.meta.tickCount % 6 === 0) autoSaveIfNeeded(state);
-
-  // Small XP over time
   if (state.meta.tickCount % 4 === 0) addPresidentXP(2);
 
   setState(state);
 
-  // Show event modal if pending
   if (state.pendingEvent) {
     state.meta.speed = 0;
     setState(state);
     showEventModal(state.pendingEvent);
   }
 }
+
 
 function checkGameOver(state) {
   if (state.population.satisfaction < 8 && state.economy.stability < 15) {

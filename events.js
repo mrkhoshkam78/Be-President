@@ -124,14 +124,24 @@ function applyEventEffects(state, effects) {
   if (effects.infrastructure) state.economy.infrastructure = Math.min(95, state.economy.infrastructure + effects.infrastructure);
   if (effects.taxRate) state.economy.taxRate = Math.max(8, Math.min(45, state.economy.taxRate + effects.taxRate));
 
-  if (effects.relationsBoost) {
+  if (effects.relationsBoost && typeof modifyRelation === 'function') {
     Object.keys(state.diplomacy.relations).forEach(k => {
-      state.diplomacy.relations[k] = Math.min(95, state.diplomacy.relations[k] + effects.relationsBoost * 0.6);
+      modifyRelation(state, k, { political: effects.relationsBoost * 0.6, overall: effects.relationsBoost * 0.6 });
+    });
+  } else if (effects.relationsBoost) {
+    Object.keys(state.diplomacy.relations).forEach(k => {
+      const v = typeof state.diplomacy.relations[k] === 'number' ? state.diplomacy.relations[k] : (state.diplomacy.relations[k].overall || 50);
+      state.diplomacy.relations[k] = Math.min(95, v + effects.relationsBoost * 0.6);
     });
   }
-  if (effects.relationsPenalty) {
+  if (effects.relationsPenalty && typeof modifyRelation === 'function') {
     Object.keys(state.diplomacy.relations).forEach(k => {
-      state.diplomacy.relations[k] = Math.max(5, state.diplomacy.relations[k] - effects.relationsPenalty * 0.6);
+      modifyRelation(state, k, { political: -effects.relationsPenalty * 0.6, overall: -effects.relationsPenalty * 0.6 });
+    });
+  } else if (effects.relationsPenalty) {
+    Object.keys(state.diplomacy.relations).forEach(k => {
+      const v = typeof state.diplomacy.relations[k] === 'number' ? state.diplomacy.relations[k] : (state.diplomacy.relations[k].overall || 50);
+      state.diplomacy.relations[k] = Math.max(5, v - effects.relationsPenalty * 0.6);
     });
   }
   if (effects.military && effects.military.readiness) {
@@ -144,3 +154,84 @@ function forceEvent(state, eventId) {
   if (template) triggerEvent(state, template);
   return state;
 }
+
+// ========== NEWS SYSTEM ==========
+
+function addNews(state, newsItem) {
+  if (!state.news) state.news = [];
+  const item = {
+    id: 'news_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    type: newsItem.type || 'domestic',
+    category: newsItem.category || 'general',
+    icon: newsItem.icon || '📰',
+    title: newsItem.title,
+    summary: newsItem.summary || '',
+    day: state.time.totalDays,
+    year: state.time.year,
+    month: state.time.month,
+    countries: newsItem.countries || [],
+    important: !!newsItem.important,
+    read: false
+  };
+  state.news.unshift(item);
+  if (state.news.length > 60) state.news = state.news.slice(0, 60);
+  state.newsUnread = (state.newsUnread || 0) + 1;
+  if (item.important && state.alerts) {
+    state.alerts.unshift({
+      type: item.type === 'domestic' ? 'info' : 'warning',
+      text: `📰 ${item.title}`
+    });
+  }
+  return item;
+}
+
+function markNewsRead(state, newsId) {
+  if (!state.news) return;
+  const n = state.news.find(x => x.id === newsId);
+  if (n && !n.read) {
+    n.read = true;
+    state.newsUnread = Math.max(0, (state.newsUnread || 1) - 1);
+  }
+}
+
+function markAllNewsRead(state) {
+  if (!state.news) return;
+  state.news.forEach(n => { n.read = true; });
+  state.newsUnread = 0;
+}
+
+function generateContextualNews(state, prevSnapshot) {
+  if (!prevSnapshot) return;
+  if (state.economy.inflation > 7 && prevSnapshot.inflation <= 7) {
+    addNews(state, {
+      type: 'domestic', category: 'economy', icon: '📈',
+      title: 'افزایش تورم نگرانی‌های اقتصادی را افزایش داد',
+      summary: `تورم به ${state.economy.inflation.toFixed(1)}٪ رسید.`,
+      important: state.economy.inflation > 10
+    });
+  }
+  if (state.economy.unemployment > 12 && prevSnapshot.unemployment <= 12) {
+    addNews(state, {
+      type: 'domestic', category: 'economy', icon: '👷',
+      title: 'بیکاری به سطح نگران‌کننده رسید',
+      summary: `نرخ بیکاری ${state.economy.unemployment.toFixed(1)}٪ گزارش شد.`,
+      important: true
+    });
+  }
+  if (state.population.satisfaction < 40 && prevSnapshot.satisfaction >= 40) {
+    addNews(state, {
+      type: 'domestic', category: 'politics', icon: '📢',
+      title: 'کاهش رضایت عمومی در کشور',
+      summary: 'نظرسنجی‌ها نشان‌دهنده افت اعتماد به دولت است.',
+      important: true
+    });
+  }
+  if (state.economy.gdpGrowth > 4 && prevSnapshot.gdpGrowth <= 4) {
+    addNews(state, {
+      type: 'domestic', category: 'economy', icon: '📊',
+      title: 'رشد اقتصادی امیدوارکننده ثبت شد',
+      summary: `رشد تولید ناخالص داخلی به ${state.economy.gdpGrowth.toFixed(1)}٪ رسید.`
+    });
+  }
+}
+

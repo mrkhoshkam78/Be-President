@@ -13,7 +13,15 @@ function showPanel(panelId) {
   const btn = document.querySelector(`.nav-item[data-panel="${panelId}"]`);
   if (btn) btn.classList.add('active');
   refreshUI();
+  if (panelId === 'actions') {
+    switchActionCat(currentActionCat || 'economy');
+  }
+  if (panelId === 'news') {
+    renderNewsFeed();
+    updateNewsBadge();
+  }
 }
+
 
 function refreshUI() {
   const state = getState();
@@ -62,8 +70,9 @@ function updateMap(state) {
       <div class="node-name">${player.name}</div>
     </div>`;
 
-  COUNTRIES.forEach(c => {
-    const r = rel[c.id] ?? 40;
+  COUNTRIES.filter(c => c.id !== player.id).forEach(c => {
+    const raw = rel[c.id];
+    const r = typeof getRelationValue === 'function' ? getRelationValue(raw) : (typeof raw === 'number' ? raw : 40);
     const status = getRelationStatus(r);
     html += `
       <div class="map-node pos-${c.id}" title="${c.name}">
@@ -73,6 +82,7 @@ function updateMap(state) {
       </div>`;
   });
   world.innerHTML = html;
+
 
   // Quick stats
   const qs = $('map-quick-stats');
@@ -208,14 +218,23 @@ function updateIntelPanel(state) {
 function updateDiplomacyPanel(state) {
   const list = $('relations-list');
   if (list) {
+    const isMulti = state.diplomacy.relationsMode === 'multi';
     list.innerHTML = Object.entries(state.diplomacy.relations).map(([id, val]) => {
-      const status = getRelationStatus(val);
-      const country = COUNTRIES.find(c => c.id === id);
+      const overall = typeof getRelationValue === 'function' ? getRelationValue(val) : (typeof val === 'number' ? val : (val.overall || 50));
+      const status = getRelationStatus(overall);
+      const country = getCountryById(id) || COUNTRIES.find(c => c.id === id);
+      let extra = '';
+      if (isMulti && typeof val === 'object') {
+        extra = `<div class="rel-dims muted" style="font-size:0.7rem;margin-top:2px">
+          سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0} · تهدید ${val.threatLevel|0}
+        </div>`;
+      }
       return `<div class="rel-row">
         <span>${country?.flag || ''}</span>
         <span class="name">${country?.name || id}</span>
-        <span class="${status.class}">${val.toFixed(0)} — ${status.text}</span>
+        <span class="${status.class}">${overall.toFixed(0)} — ${status.text}</span>
         <button class="btn-sm" onclick="actionImproveRelation('${id}')">بهبود</button>
+        ${extra}
       </div>`;
     }).join('');
   }
@@ -227,6 +246,7 @@ function updateDiplomacyPanel(state) {
     ).join('');
   }
 }
+
 
 function updateSanctionsPanel(state) {
   const list = $('sanctions-list');
@@ -477,3 +497,340 @@ window.actionProposeAgreement = actionProposeAgreement;
 window.actionLiftSanction = actionLiftSanction;
 window.actionSave = actionSave;
 window.actionLoad = actionLoad;
+
+// ========== ACTIONS PANEL (categorized) ==========
+let currentActionCat = 'economy';
+let selectedActionId = null;
+
+function switchActionCat(cat) {
+  currentActionCat = cat;
+  document.querySelectorAll('.action-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.cat === cat);
+  });
+  selectedActionId = null;
+  renderActionList();
+  const detail = $('action-detail');
+  if (detail) detail.style.display = 'none';
+}
+
+function renderActionList() {
+  const list = $('action-list');
+  if (!list || typeof ACTION_CATEGORIES === 'undefined') return;
+  const cat = ACTION_CATEGORIES.find(c => c.id === currentActionCat);
+  if (!cat) return;
+  list.innerHTML = cat.actions.map(a => `
+    <div class="action-card ${selectedActionId === a.id ? 'selected' : ''}" onclick="selectAction('${a.id}')">
+      <div class="ac-icon">${a.icon}</div>
+      <div class="ac-body">
+        <div class="ac-title">${a.name}</div>
+        <div class="ac-desc">${a.desc}</div>
+        <div class="ac-meta">
+          <span>⏱ ${a.time}</span>
+          <span>⚡ ${a.impact}</span>
+          <span class="risk-${a.risk === 'بالا' ? 'high' : a.risk === 'متوسط' ? 'med' : 'low'}">ریسک: ${a.risk}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectAction(actionId) {
+  selectedActionId = actionId;
+  renderActionList();
+  const cat = ACTION_CATEGORIES.find(c => c.id === currentActionCat);
+  const action = cat && cat.actions.find(a => a.id === actionId);
+  if (!action) return;
+  const detail = $('action-detail');
+  if (!detail) return;
+  detail.style.display = 'block';
+  $('ad-icon').textContent = action.icon;
+  $('ad-title').textContent = action.name;
+  $('ad-desc').textContent = action.desc;
+  $('ad-cost').textContent = action.cost;
+  $('ad-time').textContent = action.time;
+  $('ad-impact').textContent = action.impact;
+  $('ad-risk').textContent = action.risk;
+
+  const controls = $('ad-controls');
+  controls.innerHTML = buildActionControls(actionId);
+}
+
+function buildActionControls(actionId) {
+  const state = getState();
+  if (!state) return '';
+  switch (actionId) {
+    case 'change_tax':
+      return `<label>نرخ مالیات: <span id="tax-value-a">${state.economy.taxRate}%</span></label>
+        <input type="range" id="tax-slider-a" min="8" max="45" value="${state.economy.taxRate}"
+          oninput="document.getElementById('tax-value-a').textContent=this.value+'%'" />`;
+    case 'invest_infra':
+      return `<label>مبلغ سرمایه‌گذاری:</label>
+        <input type="number" id="infra-amount-a" value="10" min="5" max="50" />`;
+    case 'mil_budget':
+      return `<label>بودجه نظامی:</label>
+        <input type="number" id="mil-budget-a" value="${state.military.budgetAmount || 12}" min="4" max="40" step="0.5" />`;
+    case 'develop_force':
+      return `<label>نوع نیرو:</label>
+        <select id="force-type-a"><option value="army">ارتش</option><option value="airForce">هوایی</option><option value="navy">دریایی</option></select>
+        <label>میزان:</label><input type="number" id="force-amount-a" value="8" min="3" max="20" />`;
+    case 'research_mil':
+      return `<label>امتیاز تحقیق:</label><input type="number" id="research-points-a" value="5" min="2" max="15" />`;
+    case 'intel_budget':
+      return `<label>بودجه اطلاعات:</label>
+        <input type="number" id="intel-budget-a" value="${state.intelligence.budget || 4}" min="1" max="15" step="0.5" />`;
+    case 'covert':
+      const opts = Object.keys(state.diplomacy.relations).map(id =>
+        `<option value="${id}">${getCountryFlag(id)} ${getCountryName(id)}</option>`).join('');
+      return `<label>نوع عملیات:</label>
+        <select id="covert-type-a"><option value="spy">جاسوسی</option><option value="sabotage">خرابکاری</option><option value="influence">نفوذ</option></select>
+        <label>هدف:</label><select id="covert-target-a">${opts}</select>`;
+    case 'improve_rel':
+    case 'propose_agree':
+    case 'sanction':
+      const opts2 = Object.keys(state.diplomacy.relations).map(id =>
+        `<option value="${id}">${getCountryFlag(id)} ${getCountryName(id)}</option>`).join('');
+      let extra = '';
+      if (actionId === 'propose_agree') {
+        extra = `<label>نوع توافق:</label>
+          <select id="agree-type-a">
+            <option value="trade">تجاری</option><option value="economic">اقتصادی</option>
+            <option value="energy">انرژی</option><option value="defense">دفاعی</option>
+            <option value="military">نظامی</option>
+          </select>`;
+      }
+      return `<label>کشور هدف:</label><select id="dip-target-a">${opts2}</select>${extra}`;
+    case 'social_policy':
+    case 'employment':
+    case 'public_services':
+    case 'trade_policy':
+    case 'train':
+    case 'gather_intel':
+      return `<p class="muted">این اقدام با هزینه ثابت اجرا می‌شود.</p>`;
+    default:
+      return '';
+  }
+}
+
+function executeSelectedAction() {
+  if (!selectedActionId) return;
+  const state = getState();
+  if (!state) return;
+  let result = null;
+
+  switch (selectedActionId) {
+    case 'change_tax': {
+      const val = parseInt($('tax-slider-a')?.value || state.economy.taxRate);
+      result = { success: true, state: changeTaxRate(state, val) };
+      showToast('نرخ مالیات به ' + val + '% تغییر کرد');
+      break;
+    }
+    case 'invest_infra': {
+      const amount = parseInt($('infra-amount-a')?.value) || 10;
+      result = investInfrastructure(state, amount);
+      if (result.success) showToast('پروژه زیرساخت آغاز شد', 'success');
+      break;
+    }
+    case 'mil_budget': {
+      const val = parseFloat($('mil-budget-a')?.value) || 12;
+      result = { success: true, state: adjustMilitaryBudget(state, val) };
+      showToast('بودجه نظامی تنظیم شد');
+      break;
+    }
+    case 'develop_force': {
+      const type = $('force-type-a')?.value || 'army';
+      const amount = parseInt($('force-amount-a')?.value) || 8;
+      result = developForce(state, type, amount);
+      if (result.success) showToast('توسعه نیرو آغاز شد', 'success');
+      break;
+    }
+    case 'research_mil': {
+      const points = parseInt($('research-points-a')?.value) || 5;
+      result = researchMilitaryTech(state, points);
+      if (result.success) showToast('تحقیق نظامی انجام شد', 'success');
+      break;
+    }
+    case 'train': {
+      result = setReadinessFocus(state, 'train');
+      if (result.success) showToast('تمرینات انجام شد', 'success');
+      break;
+    }
+    case 'intel_budget': {
+      const val = parseFloat($('intel-budget-a')?.value) || 4;
+      result = { success: true, state: setIntelligenceBudget(state, val) };
+      showToast('بودجه اطلاعات تنظیم شد');
+      break;
+    }
+    case 'gather_intel': {
+      result = gatherIntel(state);
+      if (result.success) showToast('اطلاعات جمع‌آوری شد', 'success');
+      break;
+    }
+    case 'covert': {
+      const type = $('covert-type-a')?.value || 'spy';
+      const targetId = $('covert-target-a')?.value;
+      if (!targetId) { showToast('هدف را انتخاب کنید', 'warning'); return; }
+      result = startCovertOperation(state, type, targetId);
+      if (result.success) showToast('عملیات مخفی آغاز شد', 'success');
+      break;
+    }
+    case 'improve_rel': {
+      const targetId = $('dip-target-a')?.value;
+      if (!targetId) { showToast('کشور را انتخاب کنید', 'warning'); return; }
+      result = improveRelations(state, targetId, 6);
+      if (result.success) showToast('روابط بهبود یافت', 'success');
+      break;
+    }
+    case 'propose_agree': {
+      const targetId = $('dip-target-a')?.value;
+      const type = $('agree-type-a')?.value || 'trade';
+      if (!targetId) { showToast('کشور را انتخاب کنید', 'warning'); return; }
+      result = proposeAgreement(state, targetId, type);
+      if (result.success) showToast(result.agreed ? 'توافق امضا شد!' : 'پیشنهاد رد شد', result.agreed ? 'success' : 'warning');
+      break;
+    }
+    case 'sanction': {
+      const targetId = $('dip-target-a')?.value;
+      if (!targetId) { showToast('کشور را انتخاب کنید', 'warning'); return; }
+      result = imposeSanction(state, targetId);
+      if (result.success) showToast('تحریم اعلام شد', 'warning');
+      break;
+    }
+    case 'social_policy': {
+      if (state.economy.budget < 10) { showToast('بودجه کافی نیست', 'danger'); return; }
+      state.economy.budget -= 10;
+      state.population.satisfaction = Math.min(95, state.population.satisfaction + 4);
+      result = { success: true, state };
+      showToast('سیاست اجتماعی اجرا شد', 'success');
+      if (typeof addNews === 'function') addNews(state, { type: 'domestic', category: 'politics', icon: '🤝', title: 'سیاست اجتماعی جدید اجرا شد', summary: 'خدمات اجتماعی گسترش یافت.' });
+      break;
+    }
+    case 'employment': {
+      if (state.economy.budget < 15) { showToast('بودجه کافی نیست', 'danger'); return; }
+      state.economy.budget -= 15;
+      state.economy.unemployment = Math.max(2, state.economy.unemployment - 1.2);
+      result = { success: true, state };
+      showToast('برنامه اشتغال اجرا شد', 'success');
+      break;
+    }
+    case 'public_services': {
+      if (state.economy.budget < 12) { showToast('بودجه کافی نیست', 'danger'); return; }
+      state.economy.budget -= 12;
+      state.population.satisfaction = Math.min(95, state.population.satisfaction + 3);
+      state.population.health = Math.min(95, (state.population.health || 60) + 2);
+      result = { success: true, state };
+      showToast('خدمات عمومی تقویت شد', 'success');
+      break;
+    }
+    case 'trade_policy': {
+      state.economy.exports += 2;
+      state.economy.tradeBalance += 1.5;
+      result = { success: true, state };
+      showToast('سیاست تجاری به‌روز شد', 'success');
+      break;
+    }
+    default:
+      showToast('اقدام پشتیبانی نشده', 'warning');
+      return;
+  }
+
+  if (result && !result.success) {
+    showToast(result.message || 'خطا', 'danger');
+    return;
+  }
+  if (result && result.state) setState(result.state);
+  else setState(state);
+  refreshUI();
+}
+
+// ========== NEWS PANEL ==========
+let currentNewsFilter = 'all';
+
+function filterNews(filter) {
+  currentNewsFilter = filter;
+  document.querySelectorAll('.news-filter').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+  });
+  renderNewsFeed();
+}
+
+function renderNewsFeed() {
+  const feed = $('news-feed');
+  if (!feed) return;
+  const state = getState();
+  if (!state || !state.news || !state.news.length) {
+    feed.innerHTML = '<div class="muted" style="padding:1.5rem;text-align:center">هنوز خبری ثبت نشده است</div>';
+    return;
+  }
+  let items = state.news;
+  if (currentNewsFilter === 'domestic' || currentNewsFilter === 'global') {
+    items = items.filter(n => n.type === currentNewsFilter);
+  } else if (currentNewsFilter !== 'all') {
+    items = items.filter(n => n.category === currentNewsFilter);
+  }
+  feed.innerHTML = items.map(n => `
+    <div class="news-item ${n.important ? 'news-important' : ''} ${n.read ? 'read' : 'unread'}" onclick="openNewsItem('${n.id}')">
+      <div class="news-icon">${n.icon}</div>
+      <div class="news-body">
+        <div class="news-title">${n.title}</div>
+        <div class="news-summary">${n.summary}</div>
+        <div class="news-meta">
+          <span>${n.year}/${String(n.month).padStart(2,'0')}</span>
+          <span class="news-cat">${n.type === 'domestic' ? 'داخلی' : 'جهانی'} · ${n.category}</span>
+          ${n.important ? '<span class="breaking">فوری</span>' : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openNewsItem(id) {
+  const state = getState();
+  if (!state) return;
+  markNewsRead(state, id);
+  setState(state);
+  renderNewsFeed();
+  updateNewsBadge();
+}
+
+function markAllNewsReadUI() {
+  const state = getState();
+  if (!state) return;
+  markAllNewsRead(state);
+  setState(state);
+  renderNewsFeed();
+  updateNewsBadge();
+  showToast('همه اخبار خوانده شد');
+}
+
+function updateNewsBadge() {
+  const badge = $('news-badge');
+  const state = getState();
+  if (!badge || !state) return;
+  const n = state.newsUnread || 0;
+  if (n > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = n > 9 ? '9+' : n;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Hook into refreshUI
+const _origRefreshUI = typeof refreshUI === 'function' ? refreshUI : null;
+window.refreshUI = function() {
+  if (_origRefreshUI) _origRefreshUI();
+  if (currentPanel === 'actions') {
+    renderActionList();
+  }
+  if (currentPanel === 'news') {
+    renderNewsFeed();
+  }
+  updateNewsBadge();
+};
+
+window.switchActionCat = switchActionCat;
+window.selectAction = selectAction;
+window.executeSelectedAction = executeSelectedAction;
+window.filterNews = filterNews;
+window.openNewsItem = openNewsItem;
+window.markAllNewsReadUI = markAllNewsReadUI;

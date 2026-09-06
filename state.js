@@ -1,4 +1,4 @@
-// state.js - Central Game State Management
+// state.js - Central Game State Management (v2.1)
 
 let GameState = null;
 
@@ -7,11 +7,28 @@ function createInitialState(difficultyId, countryId) {
   const m = diff.multipliers;
   const country = PLAYABLE_COUNTRIES.find(c => c.id === countryId) || PLAYABLE_COUNTRIES[0];
 
-  // Apply difficulty multipliers on top of country base
   const gdp = Math.round(country.baseGDP * m.startingResources * 10) / 10;
   const budget = Math.round(country.baseBudget * m.startingBudget);
-  const debt = Math.round(country.debt * m.startingBudget);
+  const debt = Math.round(country.debt * (m.startingBudget > 1 ? 0.9 : m.startingBudget < 1 ? 1.15 : 1));
   const resourcesScale = m.startingResources;
+
+  // Build relations: simple number for Easy/Medium, multi-dim for Realistic
+  const relations = {};
+  const isRealistic = difficultyId === 'realistic';
+  const otherCountries = PLAYABLE_COUNTRIES.filter(c => c.id !== country.id);
+
+  otherCountries.forEach(other => {
+    const base = (BASE_RELATIONS[country.id] && BASE_RELATIONS[country.id][other.id]) != null
+      ? BASE_RELATIONS[country.id][other.id]
+      : 50;
+    if (isRealistic) {
+      relations[other.id] = createMultiDimRelation(base, country, other);
+    } else {
+      // Easy/Medium: simpler single value with mild variation
+      const variance = difficultyId === 'easy' ? 8 : 5;
+      relations[other.id] = Math.round(Math.max(15, Math.min(90, base + (Math.random() * variance * 2 - variance))));
+    }
+  });
 
   return {
     meta: {
@@ -20,7 +37,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '2.0',
+      version: '2.1',
       isRunning: false,
       speed: 1,
       tickCount: 0,
@@ -39,10 +56,11 @@ function createInitialState(difficultyId, countryId) {
       population: Math.round(country.population * (0.95 + m.startingResources * 0.05)),
       populationGrowth: 0.9,
       strengths: country.strengths || [],
-      weaknesses: country.weaknesses || []
+      weaknesses: country.weaknesses || [],
+      startingChallenge: country.startingChallenge || '',
+      economicOpportunities: country.economicOpportunities || []
     },
 
-    // President RPG traits (light system)
     president: {
       name: 'رئیس‌جمهور',
       level: 1,
@@ -122,7 +140,8 @@ function createInitialState(difficultyId, countryId) {
     },
 
     diplomacy: {
-      relations: { ...country.startingRelations },
+      relations: relations,
+      relationsMode: isRealistic ? 'multi' : 'simple',
       agreements: [],
       sanctions: [],
       treaties: [],
@@ -142,9 +161,13 @@ function createInitialState(difficultyId, countryId) {
     events: [],
     alerts: [],
     advisorSuggestions: [],
-    pendingEvent: null, // for choice modal
+    pendingEvent: null,
     history: { gdp: [], satisfaction: [], debt: [], events: [] },
-    actionsLog: []
+    actionsLog: [],
+
+    // News system
+    news: [],
+    newsUnread: 0
   };
 }
 
@@ -159,9 +182,19 @@ function updateState(updater) {
 
 function resetState(difficultyId, countryId) {
   GameState = createInitialState(difficultyId, countryId);
-  // Calculate initial military powers
   if (typeof updateMilitaryPowers === 'function') {
     updateMilitaryPowers(GameState);
+  }
+  // Seed initial news
+  if (typeof addNews === 'function') {
+    addNews(GameState, {
+      type: 'domestic',
+      category: 'politics',
+      icon: '🏛️',
+      title: `آغاز ریاست‌جمهوری در ${GameState.country.name}`,
+      summary: `رئیس‌جمهور جدید کار خود را آغاز کرد. چالش اصلی: ${GameState.country.startingChallenge || 'مدیریت کشور'}`,
+      important: true
+    });
   }
   return GameState;
 }
@@ -192,12 +225,11 @@ function setPath(path, value) {
   obj[keys[keys.length - 1]] = value;
 }
 
-// President skill helpers
 function getSkillBonus(skillName) {
   const s = getState();
   if (!s || !s.president) return 0;
   const val = s.president.skills[skillName] || 5;
-  return (val - 5) * 0.02; // ±2% per point above/below 5
+  return (val - 5) * 0.02;
 }
 
 function addPresidentXP(amount) {
@@ -211,4 +243,39 @@ function addPresidentXP(amount) {
     s.president.xpToNext = Math.round(s.president.xpToNext * 1.35);
     s.alerts.unshift({ type: 'success', text: `رئیس‌جمهور به سطح ${s.president.level} رسید! +1 امتیاز مهارت` });
   }
+}
+
+/** Helper: get overall relation value (works for both simple and multi) */
+function getRelationValue(rel) {
+  if (rel == null) return 50;
+  if (typeof rel === 'number') return rel;
+  return rel.overall != null ? rel.overall : (rel.political || 50);
+}
+
+/** Helper: update a relation dimensionally or simply */
+function modifyRelation(state, targetId, changes) {
+  if (!state.diplomacy.relations[targetId]) return;
+  const isMulti = state.diplomacy.relationsMode === 'multi';
+  if (!isMulti) {
+    const delta = changes.overall || changes.political || 0;
+    state.diplomacy.relations[targetId] = Math.round(Math.max(5, Math.min(95,
+      getRelationValue(state.diplomacy.relations[targetId]) + delta
+    )) * 10) / 10;
+  } else {
+    const r = state.diplomacy.relations[targetId];
+    if (changes.political != null) r.political = clamp(r.political + changes.political, 5, 95);
+    if (changes.economic != null) r.economic = clamp(r.economic + changes.economic, 5, 95);
+    if (changes.military != null) r.military = clamp(r.military + changes.military, 5, 95);
+    if (changes.trust != null) r.trust = clamp(r.trust + changes.trust, 5, 95);
+    if (changes.strategicInterest != null) r.strategicInterest = clamp(r.strategicInterest + changes.strategicInterest, 5, 95);
+    if (changes.threatLevel != null) r.threatLevel = clamp(r.threatLevel + changes.threatLevel, 5, 95);
+    // Recalc overall
+    r.overall = Math.round(
+      r.political * 0.3 + r.economic * 0.25 + r.military * 0.15 + r.trust * 0.2 + r.strategicInterest * 0.1
+    );
+  }
+}
+
+function clamp(v, min, max) {
+  return Math.round(Math.max(min, Math.min(max, v)) * 10) / 10;
 }

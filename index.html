@@ -76,6 +76,7 @@
       </div>
       <div class="nav-group">
         <div class="nav-group-title">مدیریت</div>
+        <button class="nav-item" data-panel="actions"><span class="ico">⚡</span> اقدامات</button>
         <button class="nav-item" data-panel="economy"><span class="ico">💰</span> اقتصاد</button>
         <button class="nav-item" data-panel="population"><span class="ico">👥</span> مردم</button>
         <button class="nav-item" data-panel="military"><span class="ico">⚔️</span> نظامی</button>
@@ -88,6 +89,7 @@
       </div>
       <div class="nav-group">
         <div class="nav-group-title">سایر</div>
+        <button class="nav-item" data-panel="news"><span class="ico">📰</span> اخبار <span id="news-badge" class="nav-badge" style="display:none">0</span></button>
         <button class="nav-item" data-panel="advisor"><span class="ico">🧠</span> مشاور</button>
         <button class="nav-item" data-panel="president"><span class="ico">👤</span> رئیس‌جمهور</button>
         <button class="nav-item" data-panel="stats"><span class="ico">📊</span> آمار</button>
@@ -136,6 +138,51 @@
           <h3>پروژه‌های فعال</h3>
           <div id="overview-projects" class="muted">هیچ پروژه‌ای در جریان نیست</div>
         </div>
+      </div>
+
+
+      <!-- ACTIONS -->
+      <div id="actions" class="panel">
+        <div class="panel-title">⚡ اقدامات</div>
+        <div class="action-tabs" id="action-tabs">
+          <button class="action-tab active" data-cat="economy" onclick="switchActionCat('economy')">💰 اقتصادی</button>
+          <button class="action-tab" data-cat="domestic" onclick="switchActionCat('domestic')">👥 داخلی</button>
+          <button class="action-tab" data-cat="military" onclick="switchActionCat('military')">⚔️ نظامی</button>
+          <button class="action-tab" data-cat="intelligence" onclick="switchActionCat('intelligence')">🕵️ اطلاعاتی</button>
+          <button class="action-tab" data-cat="diplomacy" onclick="switchActionCat('diplomacy')">🌐 دیپلماتیک</button>
+        </div>
+        <div id="action-list" class="action-list"></div>
+        <div id="action-detail" class="action-detail" style="display:none">
+          <div class="action-detail-header">
+            <span id="ad-icon"></span>
+            <h3 id="ad-title"></h3>
+          </div>
+          <p id="ad-desc" class="muted"></p>
+          <div class="action-meta-grid">
+            <div><span class="lbl">هزینه</span><span id="ad-cost">—</span></div>
+            <div><span class="lbl">زمان</span><span id="ad-time">—</span></div>
+            <div><span class="lbl">تأثیر</span><span id="ad-impact">—</span></div>
+            <div><span class="lbl">ریسک</span><span id="ad-risk">—</span></div>
+          </div>
+          <div id="ad-controls" class="action-controls"></div>
+          <button class="btn-main" id="ad-execute" onclick="executeSelectedAction()">اجرای اقدام</button>
+        </div>
+      </div>
+
+      <!-- NEWS -->
+      <div id="news" class="panel">
+        <div class="panel-title">📰 اخبار
+          <button class="btn-ghost btn-sm" onclick="markAllNewsReadUI()" style="float:left;margin-top:-4px">خواندن همه</button>
+        </div>
+        <div class="news-filters">
+          <button class="news-filter active" data-filter="all" onclick="filterNews('all')">همه</button>
+          <button class="news-filter" data-filter="domestic" onclick="filterNews('domestic')">🏛️ داخلی</button>
+          <button class="news-filter" data-filter="global" onclick="filterNews('global')">🌍 جهانی</button>
+          <button class="news-filter" data-filter="economy" onclick="filterNews('economy')">💰 اقتصادی</button>
+          <button class="news-filter" data-filter="diplomacy" onclick="filterNews('diplomacy')">🌐 دیپلماسی</button>
+          <button class="news-filter" data-filter="military" onclick="filterNews('military')">⚔️ نظامی</button>
+        </div>
+        <div id="news-feed" class="news-feed"></div>
       </div>
 
       <!-- ECONOMY -->
