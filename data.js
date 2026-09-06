@@ -921,3 +921,98 @@ const ACTION_CATEGORIES = [
     ]
   }
 ];
+
+/** Central Min/Max limits for all upgradable / adjustable values.
+ *  Enforced in game logic AND UI. Source of truth for clamps. */
+const LIMITS = {
+  taxRate:           { min: 8,  max: 45 },
+  infrastructure:    { min: 10, max: 100 },
+  industrialProduction: { min: 10, max: 100 },
+  naturalResources:  { min: 5,  max: 100 },
+  satisfaction:      { min: 5,  max: 98 },
+  stability:         { min: 10, max: 95 },
+  gdpGrowth:         { min: -5, max: 9 },
+  inflation:         { min: 0.1, max: 30 },
+  unemployment:      { min: 1.5, max: 40 },
+  foreignInvestment: { min: 0,  max: 90 },
+
+  // Military
+  army:              { min: 10, max: 100 },
+  airForce:          { min: 5,  max: 100 },
+  navy:              { min: 5,  max: 100 },
+  defenseSystems:    { min: 5,  max: 100 },
+  militaryTech:      { min: 10, max: 100 },
+  readiness:         { min: 15, max: 100 },
+  milBudgetAmount:   { min: 3,  max: 45 },
+  attackPower:       { min: 0,  max: 120 },
+  defensePower:      { min: 0,  max: 120 },
+
+  // Intelligence
+  intelBudget:       { min: 1,  max: 20 },
+  intelLevel:        { min: 10, max: 95 },
+  intelDomestic:     { min: 10, max: 95 },
+  intelForeign:      { min: 10, max: 95 },
+  intelCounter:      { min: 10, max: 95 },
+
+  // Tech
+  techLevel:         { min: 10, max: 100 },
+  researchPoints:    { min: 0,  max: 500 },
+  researchBudget:    { min: 1,  max: 25 },
+
+  // President skills
+  skill:             { min: 1,  max: 10 },
+  presidentLevel:    { min: 1,  max: 50 },
+
+  // Relations (simple or overall)
+  relation:          { min: 5,  max: 95 }
+};
+
+function clampValue(key, value) {
+  const lim = LIMITS[key];
+  if (!lim) return value;
+  const n = Number(value);
+  if (isNaN(n)) return lim.min;
+  return Math.round(Math.max(lim.min, Math.min(lim.max, n)) * 100) / 100;
+}
+
+function isAtMax(key, value) {
+  const lim = LIMITS[key];
+  if (!lim) return false;
+  return Number(value) >= lim.max;
+}
+
+function isAtMin(key, value) {
+  const lim = LIMITS[key];
+  if (!lim) return false;
+  return Number(value) <= lim.min;
+}
+
+function getLimitLabel(key, value) {
+  const lim = LIMITS[key];
+  if (!lim) return String(value);
+  return `${Number(value).toFixed(0)} / ${lim.max}`;
+}
+
+/** Approximate geographic positions for map (percent of map area) */
+const MAP_POSITIONS = {
+  usa:          { top: 32, left: 12 },
+  canada:       { top: 18, left: 14 },
+  mexico:       { top: 42, left: 10 },
+  brazil:       { top: 68, left: 28 },
+  uk:           { top: 22, left: 42 },
+  france:       { top: 30, left: 44 },
+  germany:      { top: 26, left: 48 },
+  italy:        { top: 36, left: 50 },
+  spain:        { top: 38, left: 40 },
+  russia:       { top: 20, left: 68 },
+  turkey:       { top: 38, left: 56 },
+  egypt:        { top: 48, left: 54 },
+  saudi:        { top: 48, left: 60 },
+  south_africa: { top: 78, left: 52 },
+  india:        { top: 48, left: 70 },
+  china:        { top: 34, left: 78 },
+  japan:        { top: 32, left: 88 },
+  south_korea:  { top: 36, left: 86 },
+  indonesia:    { top: 62, left: 84 },
+  australia:    { top: 78, left: 88 }
+};

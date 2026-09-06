@@ -4,6 +4,32 @@ let currentPanel = 'map';
 
 function $(id) { return document.getElementById(id); }
 
+/** Populate all country dropdowns from central PLAYABLE_COUNTRIES / relations (exclude player) */
+function populateCountrySelects(state) {
+  if (!state) state = getState();
+  if (!state) return;
+  const playerId = state.country?.id;
+  const ids = Object.keys(state.diplomacy.relations || {});
+  // Fallback to all playable except self
+  const source = ids.length ? ids : (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.filter(c => c.id !== playerId).map(c => c.id) : []);
+  const options = source.map(id => {
+    const flag = typeof getCountryFlag === 'function' ? getCountryFlag(id) : '';
+    const name = typeof getCountryName === 'function' ? getCountryName(id) : id;
+    const rel = state.diplomacy.relations[id];
+    const val = typeof getRelationValue === 'function' ? getRelationValue(rel) : (typeof rel === 'number' ? rel : 50);
+    return `<option value="${id}">${flag} ${name} (${Math.round(val)})</option>`;
+  }).join('');
+  ['covert-target', 'agree-target'].forEach(selId => {
+    const sel = $(selId);
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = `<option value="">انتخاب کشور...</option>` + options;
+    if (current && source.includes(current)) sel.value = current;
+  });
+}
+
+
+
 function showPanel(panelId) {
   currentPanel = panelId;
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -26,6 +52,7 @@ function showPanel(panelId) {
 function refreshUI() {
   const state = getState();
   if (!state) return;
+  populateCountrySelects(state);
   updateHUD(state);
   updateMap(state);
   updateOverview(state);
@@ -64,21 +91,31 @@ function updateMap(state) {
   const rel = state.diplomacy.relations || {};
   const player = state.country;
 
+  const others = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : COUNTRIES)
+    .filter(c => c.id !== player.id);
+  const ppos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[player.id])
+    ? MAP_POSITIONS[player.id] : { top: 42, left: 42 };
   let html = `
-    <div class="map-node player pos-player">
+    <div class="map-node player neon-player" data-country="${player.id}" style="top:${ppos.top}%;left:${ppos.left}%;">
+      <div class="node-glow"></div>
       <div class="node-flag">${player.flag}</div>
       <div class="node-name">${player.name}</div>
+      <div class="node-rel rel-excellent">شما</div>
     </div>`;
-
-  COUNTRIES.filter(c => c.id !== player.id).forEach(c => {
+  others.forEach(c => {
     const raw = rel[c.id];
     const r = typeof getRelationValue === 'function' ? getRelationValue(raw) : (typeof raw === 'number' ? raw : 40);
     const status = getRelationStatus(r);
+    const pos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[c.id])
+      ? MAP_POSITIONS[c.id] : { top: 40, left: 50 };
+    const glowClass = r >= 70 ? 'neon-ally' : r <= 30 ? 'neon-hostile' : 'neon-neutral';
     html += `
-      <div class="map-node pos-${c.id}" title="${c.name}">
+      <div class="map-node ${glowClass}" data-country="${c.id}" style="top:${pos.top}%;left:${pos.left}%;"
+           title="${c.name}" onclick="onMapCountryClick('${c.id}')">
+        <div class="node-glow"></div>
         <div class="node-flag">${c.flag}</div>
         <div class="node-name">${c.name}</div>
-        <div class="node-rel ${status.class}">${r.toFixed(0)}</div>
+        <div class="node-rel ${status.class}">${Math.round(r)}</div>
       </div>`;
   });
   world.innerHTML = html;
@@ -291,22 +328,29 @@ function updatePresidentPanel(state) {
   const skillsBox = $('pres-skills');
   if (skillsBox) {
     const names = { management: 'مدیریت', economy: 'اقتصاد', diplomacy: 'دیپلماسی', military: 'فرماندهی', intelligence: 'اطلاعات' };
-    skillsBox.innerHTML = Object.entries(p.skills).map(([k, v]) => `
+    const skillMax = (typeof LIMITS !== 'undefined' && LIMITS.skill) ? LIMITS.skill.max : 10;
+    skillsBox.innerHTML = Object.entries(p.skills).map(([k, v]) => {
+      const atMax = v >= skillMax;
+      const noPts = p.skillPoints < 1;
+      const disabled = atMax || noPts;
+      const title = atMax ? 'حداکثر سطح مهارت' : (noPts ? 'امتیاز مهارت کافی نیست' : 'ارتقای مهارت');
+      return `
       <div class="skill-row">
         <span class="sk-name">${names[k] || k}</span>
-        <div class="sk-bar"><div class="bar-track"><div class="bar-fill" style="width:${v * 10}%"></div></div></div>
-        <span class="sk-val">${v}</span>
-        <button onclick="upgradeSkill('${k}')" ${p.skillPoints < 1 || v >= 10 ? 'disabled' : ''}>+</button>
-      </div>
-    `).join('');
+        <div class="sk-bar"><div class="bar-track"><div class="bar-fill" style="width:${(v / skillMax) * 100}%"></div></div></div>
+        <span class="sk-val">${v} / ${skillMax}</span>
+        <button class="btn-sm" onclick="upgradeSkill('${k}')" ${disabled ? 'disabled' : ''} title="${title}">+</button>
+      </div>`;
+    }).join('');
   }
 }
 
 function upgradeSkill(skill) {
   const state = getState();
   if (!state || !state.president || state.president.skillPoints < 1) return;
-  if (state.president.skills[skill] >= 10) return;
-  state.president.skills[skill] += 1;
+  const maxSkill = (typeof LIMITS !== 'undefined' && LIMITS.skill) ? LIMITS.skill.max : 10;
+  if (state.president.skills[skill] >= maxSkill) return;
+  state.president.skills[skill] = typeof clampValue === 'function' ? clampValue('skill', state.president.skills[skill] + 1) : state.president.skills[skill] + 1;
   state.president.skillPoints -= 1;
   setState(state);
   refreshUI();
@@ -482,6 +526,25 @@ function actionLoad() {
   showToast(result.message, result.success ? 'success' : 'danger');
 }
 
+
+function onMapCountryClick(countryId) {
+  const state = getState();
+  if (!state) return;
+  // Highlight and show quick info; switch to diplomacy with focus
+  document.querySelectorAll('.map-node').forEach(n => n.classList.remove('map-selected'));
+  const node = document.querySelector(`.map-node[data-country="${countryId}"]`);
+  if (node) node.classList.add('map-selected');
+  const name = typeof getCountryName === 'function' ? getCountryName(countryId) : countryId;
+  const rel = state.diplomacy.relations[countryId];
+  const val = typeof getRelationValue === 'function' ? getRelationValue(rel) : 50;
+  showToast(`${name} — روابط: ${Math.round(val)}`, 'info');
+}
+
+function onMapCountryHover(countryId, entering) {
+  // reserved for future tooltip; class handled by CSS :hover
+}
+
+
 window.upgradeSkill = upgradeSkill;
 window.actionChangeTax = actionChangeTax;
 window.actionInvestInfra = actionInvestInfra;
@@ -559,25 +622,39 @@ function buildActionControls(actionId) {
   const state = getState();
   if (!state) return '';
   switch (actionId) {
-    case 'change_tax':
-      return `<label>نرخ مالیات: <span id="tax-value-a">${state.economy.taxRate}%</span></label>
-        <input type="range" id="tax-slider-a" min="8" max="45" value="${state.economy.taxRate}"
+    case 'change_tax': {
+      const tMin = LIMITS?.taxRate?.min ?? 8, tMax = LIMITS?.taxRate?.max ?? 45;
+      return `<label>نرخ مالیات: <span id="tax-value-a">${state.economy.taxRate}%</span> <span class="limit-label">(${tMin}–${tMax})</span></label>
+        <input type="range" id="tax-slider-a" min="${tMin}" max="${tMax}" value="${state.economy.taxRate}"
           oninput="document.getElementById('tax-value-a').textContent=this.value+'%'" />`;
+    }
     case 'invest_infra':
       return `<label>مبلغ سرمایه‌گذاری:</label>
         <input type="number" id="infra-amount-a" value="10" min="5" max="50" />`;
-    case 'mil_budget':
-      return `<label>بودجه نظامی:</label>
-        <input type="number" id="mil-budget-a" value="${state.military.budgetAmount || 12}" min="4" max="40" step="0.5" />`;
-    case 'develop_force':
+    case 'mil_budget': {
+      const mn = LIMITS?.milBudgetAmount?.min ?? 3, mx = LIMITS?.milBudgetAmount?.max ?? 45;
+      return `<label>بودجه نظامی: <span class="limit-label">${mn}–${mx}</span></label>
+        <input type="number" id="mil-budget-a" value="${state.military.budgetAmount || 12}" min="${mn}" max="${mx}" step="0.5" />`;
+    }
+    case 'develop_force': {
+      const army = state.military.army || 0;
+      const mx = LIMITS?.army?.max ?? 100;
       return `<label>نوع نیرو:</label>
-        <select id="force-type-a"><option value="army">ارتش</option><option value="airForce">هوایی</option><option value="navy">دریایی</option></select>
-        <label>میزان:</label><input type="number" id="force-amount-a" value="8" min="3" max="20" />`;
+        <select id="force-type-a">
+          <option value="army">ارتش (${army}/${mx})</option>
+          <option value="airForce">هوایی (${state.military.airForce||0}/${mx})</option>
+          <option value="navy">دریایی (${state.military.navy||0}/${mx})</option>
+        </select>
+        <label>میزان:</label><input type="number" id="force-amount-a" value="8" min="3" max="20" />
+        ${isAtMax('army', army) && isAtMax('airForce', state.military.airForce) && isAtMax('navy', state.military.navy) ? '<p class="limit-max">همه نیروها در حداکثر هستند</p>' : ''}`;
+    }
     case 'research_mil':
       return `<label>امتیاز تحقیق:</label><input type="number" id="research-points-a" value="5" min="2" max="15" />`;
-    case 'intel_budget':
-      return `<label>بودجه اطلاعات:</label>
-        <input type="number" id="intel-budget-a" value="${state.intelligence.budget || 4}" min="1" max="15" step="0.5" />`;
+    case 'intel_budget': {
+      const mn = LIMITS?.intelBudget?.min ?? 1, mx = LIMITS?.intelBudget?.max ?? 20;
+      return `<label>بودجه اطلاعات: <span class="limit-label">${mn}–${mx}</span></label>
+        <input type="number" id="intel-budget-a" value="${state.intelligence.budget || 4}" min="${mn}" max="${mx}" step="0.5" />`;
+    }
     case 'covert':
       const opts = Object.keys(state.diplomacy.relations).map(id =>
         `<option value="${id}">${getCountryFlag(id)} ${getCountryName(id)}</option>`).join('');

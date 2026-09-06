@@ -208,35 +208,39 @@ function processEconomyTick(state) {
 
 // Player actions affecting economy
 function changeTaxRate(state, newRate) {
-  newRate = Math.max(8, Math.min(45, newRate));
+  newRate = typeof clampValue === 'function' ? clampValue('taxRate', newRate) : Math.max(8, Math.min(45, newRate));
   const old = state.economy.taxRate;
   state.economy.taxRate = newRate;
-  // Immediate satisfaction hit/gain
   const delta = newRate - old;
-  state.population.satisfaction = Math.max(5, Math.min(98,
-    state.population.satisfaction - delta * 0.4
-  ));
+  state.population.satisfaction = typeof clampValue === 'function'
+    ? clampValue('satisfaction', state.population.satisfaction - delta * 0.4)
+    : Math.max(5, Math.min(98, state.population.satisfaction - delta * 0.4));
   logAction(state, `نرخ مالیات به ${newRate}% تغییر کرد`);
   return state;
 }
 
 function investInfrastructure(state, amount) {
   const m = getDifficultyMultipliers();
+  if (typeof isAtMax === 'function' && isAtMax('infrastructure', state.economy.infrastructure)) {
+    return { success: false, message: 'زیرساخت به حداکثر سطح رسیده است' };
+  }
   const cost = Math.round(amount * m.infrastructureCost);
   if (state.economy.budget < cost) {
     return { success: false, message: 'بودجه کافی نیست' };
   }
   state.economy.budget -= cost;
   state.economy.spending += cost;
-  // Project
   const duration = Math.max(2, Math.round(4 / m.infrastructureSpeed));
+  const maxInfra = (typeof LIMITS !== 'undefined' && LIMITS.infrastructure) ? LIMITS.infrastructure.max : 100;
+  const gainInfra = Math.min(Math.round(amount * 0.35), maxInfra - state.economy.infrastructure);
+  const gainProd = Math.round(amount * 0.12);
   state.projects.push({
     id: 'infra_' + Date.now(),
     type: 'infrastructure',
     name: 'توسعه زیرساخت',
     remaining: duration,
     total: duration,
-    effect: { infrastructure: Math.round(amount * 0.35), production: Math.round(amount * 0.12) }
+    effect: { infrastructure: gainInfra, production: gainProd }
   });
   logAction(state, `سرمایه‌گذاری ${cost} واحد در زیرساخت آغاز شد`);
   return { success: true, state };
@@ -244,7 +248,7 @@ function investInfrastructure(state, amount) {
 
 function adjustMilitaryBudget(state, newAmount) {
   const m = getDifficultyMultipliers();
-  newAmount = Math.max(3, Math.min(45, newAmount));
+  newAmount = typeof clampValue === 'function' ? clampValue('milBudgetAmount', newAmount) : Math.max(3, Math.min(45, newAmount));
   state.military.budgetAmount = Math.round(newAmount * m.militaryCost * 10) / 10;
   logAction(state, `بودجه نظامی به ${state.military.budgetAmount} تنظیم شد`);
   return state;

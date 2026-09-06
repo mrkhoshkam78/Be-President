@@ -33,12 +33,12 @@ function processMilitaryTick(state) {
     if (p.type === 'military' || p.type === 'defense') {
       p.remaining -= 1;
       if (p.remaining <= 0) {
-        if (p.effect.army) mil.army = Math.min(95, mil.army + p.effect.army);
-        if (p.effect.airForce) mil.airForce = Math.min(95, mil.airForce + p.effect.airForce);
-        if (p.effect.navy) mil.navy = Math.min(95, mil.navy + p.effect.navy);
-        if (p.effect.defenseSystems) mil.defenseSystems = Math.min(95, mil.defenseSystems + p.effect.defenseSystems);
-        if (p.effect.technology) mil.technology = Math.min(95, mil.technology + p.effect.technology);
-        if (p.effect.readiness) mil.readiness = Math.min(95, mil.readiness + p.effect.readiness);
+        if (p.effect.army) mil.army = typeof clampValue === 'function' ? clampValue('army', mil.army + p.effect.army) : Math.min(100, mil.army + p.effect.army);
+        if (p.effect.airForce) mil.airForce = typeof clampValue === 'function' ? clampValue('airForce', mil.airForce + p.effect.airForce) : Math.min(100, mil.airForce + p.effect.airForce);
+        if (p.effect.navy) mil.navy = typeof clampValue === 'function' ? clampValue('navy', mil.navy + p.effect.navy) : Math.min(100, mil.navy + p.effect.navy);
+        if (p.effect.defenseSystems) mil.defenseSystems = typeof clampValue === 'function' ? clampValue('defenseSystems', mil.defenseSystems + p.effect.defenseSystems) : Math.min(100, mil.defenseSystems + p.effect.defenseSystems);
+        if (p.effect.technology) mil.technology = typeof clampValue === 'function' ? clampValue('militaryTech', mil.technology + p.effect.technology) : Math.min(100, mil.technology + p.effect.technology);
+        if (p.effect.readiness) mil.readiness = typeof clampValue === 'function' ? clampValue('readiness', mil.readiness + p.effect.readiness) : Math.min(100, mil.readiness + p.effect.readiness);
         logAction(state, `پروژه نظامی «${p.name}» تکمیل شد`);
         return false;
       }
@@ -51,6 +51,11 @@ function processMilitaryTick(state) {
 
 function developForce(state, forceType, amount) {
   const m = getDifficultyMultipliers();
+  const limKey = forceType === 'airForce' ? 'airForce' : forceType === 'navy' ? 'navy' : forceType === 'defenseSystems' ? 'defenseSystems' : 'army';
+  const current = state.military[forceType] || 0;
+  if (typeof isAtMax === 'function' && isAtMax(limKey, current)) {
+    return { success: false, message: 'این نیرو به حداکثر سطح رسیده است (' + (LIMITS[limKey]?.max || 100) + ')' };
+  }
   const cost = Math.round(amount * 2.8 * m.militaryCost);
   if (state.economy.budget < cost) {
     return { success: false, message: 'بودجه کافی برای توسعه نیرو وجود ندارد' };
@@ -59,7 +64,9 @@ function developForce(state, forceType, amount) {
 
   const duration = Math.max(2, Math.round(3 + amount / 8));
   const effect = {};
-  effect[forceType] = Math.round(amount * 0.4);
+  const gain = Math.round(amount * 0.4);
+  const maxVal = (typeof LIMITS !== 'undefined' && LIMITS[limKey]) ? LIMITS[limKey].max : 100;
+  effect[forceType] = Math.min(gain, maxVal - current);
 
   state.projects.push({
     id: 'mil_' + forceType + '_' + Date.now(),
@@ -82,14 +89,17 @@ function developForce(state, forceType, amount) {
 
 function researchMilitaryTech(state, points) {
   const m = getDifficultyMultipliers();
+  if (typeof isAtMax === 'function' && isAtMax('militaryTech', state.military.technology) && isAtMax('techLevel', state.tech.level)) {
+    return { success: false, message: 'فناوری نظامی و سطح فناوری به حداکثر رسیده‌اند' };
+  }
   const cost = Math.round(points * 1.8 * m.techCost);
   if (state.economy.budget < cost) {
     return { success: false, message: 'بودجه تحقیق کافی نیست' };
   }
   state.economy.budget -= cost;
-  state.military.technology = Math.min(95, state.military.technology + Math.round(points * 0.35));
-  state.tech.level = Math.min(95, state.tech.level + Math.round(points * 0.15));
-  state.tech.researchPoints += points;
+  state.military.technology = typeof clampValue === 'function' ? clampValue('militaryTech', state.military.technology + Math.round(points * 0.35)) : Math.min(100, state.military.technology + Math.round(points * 0.35));
+  state.tech.level = typeof clampValue === 'function' ? clampValue('techLevel', state.tech.level + Math.round(points * 0.15)) : Math.min(100, state.tech.level + Math.round(points * 0.15));
+  state.tech.researchPoints = typeof clampValue === 'function' ? clampValue('researchPoints', state.tech.researchPoints + points) : state.tech.researchPoints + points;
 
   logAction(state, `تحقیق فناوری نظامی: +${points} امتیاز`);
   updateMilitaryPowers(state);
@@ -97,11 +107,13 @@ function researchMilitaryTech(state, points) {
 }
 
 function setReadinessFocus(state, focus) {
-  // focus: 'train' increases readiness faster but costs more
   if (focus === 'train') {
+    if (typeof isAtMax === 'function' && isAtMax('readiness', state.military.readiness)) {
+      return { success: false, message: 'آمادگی نیروها در حداکثر است' };
+    }
     if (state.economy.budget < 5) return { success: false, message: 'بودجه ناکافی' };
     state.economy.budget -= 5;
-    state.military.readiness = Math.min(98, state.military.readiness + 4);
+    state.military.readiness = typeof clampValue === 'function' ? clampValue('readiness', state.military.readiness + 4) : Math.min(100, state.military.readiness + 4);
     logAction(state, 'تمرینات نظامی فشرده انجام شد');
   }
   updateMilitaryPowers(state);

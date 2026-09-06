@@ -5,10 +5,10 @@ function processIntelligenceTick(state) {
 
   // Level slowly improves with budget
   if (intel.budget > 6) {
-    intel.level = Math.min(90, intel.level + 0.15);
-    intel.foreign = Math.min(90, intel.foreign + 0.12);
-    intel.domestic = Math.min(90, intel.domestic + 0.1);
-    intel.counter = Math.min(90, intel.counter + 0.1);
+    intel.level = typeof clampValue === 'function' ? clampValue('intelLevel', intel.level + 0.15) : Math.min(95, intel.level + 0.15);
+    intel.foreign = typeof clampValue === 'function' ? clampValue('intelForeign', intel.foreign + 0.12) : Math.min(95, intel.foreign + 0.12);
+    intel.domestic = typeof clampValue === 'function' ? clampValue('intelDomestic', intel.domestic + 0.1) : Math.min(95, intel.domestic + 0.1);
+    intel.counter = typeof clampValue === 'function' ? clampValue('intelCounter', intel.counter + 0.1) : Math.min(95, intel.counter + 0.1);
   } else if (intel.budget < 3) {
     intel.level = Math.max(15, intel.level - 0.2);
   }
@@ -27,7 +27,7 @@ function processIntelligenceTick(state) {
 }
 
 function setIntelligenceBudget(state, amount) {
-  amount = Math.max(1, Math.min(20, amount));
+  amount = typeof clampValue === 'function' ? clampValue('intelBudget', amount) : Math.max(1, Math.min(20, amount));
   state.intelligence.budget = amount;
   logAction(state, `بودجه سازمان اطلاعات به ${amount} تنظیم شد`);
   return state;
