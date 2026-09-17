@@ -76,6 +76,7 @@
       </div>
       <div class="nav-group">
         <div class="nav-group-title">مدیریت</div>
+        <button class="nav-item" data-panel="upgrades"><span class="ico">⬆️</span> ارتقاها</button>
         <button class="nav-item" data-panel="actions"><span class="ico">⚡</span> اقدامات</button>
         <button class="nav-item" data-panel="economy"><span class="ico">💰</span> اقتصاد</button>
         <button class="nav-item" data-panel="population"><span class="ico">👥</span> مردم</button>
@@ -85,6 +86,7 @@
       <div class="nav-group">
         <div class="nav-group-title">خارجی</div>
         <button class="nav-item" data-panel="diplomacy"><span class="ico">🌐</span> دیپلماسی</button>
+        <button class="nav-item" data-panel="wars"><span class="ico">⚔️</span> جنگ‌ها</button>
         <button class="nav-item" data-panel="sanctions"><span class="ico">🚫</span> تحریم‌ها</button>
       </div>
       <div class="nav-group">
@@ -141,6 +143,16 @@
         </div>
       </div>
 
+      <!-- UPGRADES V3 -->
+      <div id="upgrades" class="panel">
+        <div class="panel-title">⬆️ ارتقاها (UPGRADES)</div>
+        <p class="muted" style="margin-bottom:0.8rem">تمام ارتقاهای اقتصادی، نظامی، فناوری، اطلاعاتی و زیرساختی. حداکثر سطح: ۱۰۰</p>
+        <div id="upgrades-grid" class="upgrade-grid"></div>
+        <div class="section" style="margin-top:1rem">
+          <h3>🗳️ وضعیت انتخابات</h3>
+          <div id="election-status" class="stat-grid"></div>
+        </div>
+      </div>
 
       <!-- ACTIONS -->
       <div id="actions" class="panel">
@@ -289,6 +301,35 @@
             <button class="btn" onclick="actionResearchMil()">تحقیق نظامی</button>
             <button class="btn btn-success" onclick="actionTrain()">تمرین فشرده</button>
           </div>
+        </div>
+      </div>
+
+      <!-- WARS V3 -->
+      <div id="wars" class="panel">
+        <div class="panel-title">⚔️ جنگ‌ها (WARS)</div>
+        <div class="section">
+          <h3>جنگ‌های فعال</h3>
+          <div id="active-wars-list" class="muted">هیچ جنگ فعالی وجود ندارد</div>
+        </div>
+        <div class="section">
+          <h3>شروع جنگ / تنش</h3>
+          <div class="form-row">
+            <select id="war-target" class="country-select"><option value="">انتخاب کشور...</option></select>
+            <button class="btn btn-danger" onclick="actionStartWar()">اعلام جنگ / درگیری</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>اتحادهای نظامی و اقتصادی</h3>
+          <div id="alliances-list" class="muted">—</div>
+          <div class="form-row" style="margin-top:0.5rem">
+            <select id="ally-target" class="country-select"><option value="">کشور...</option></select>
+            <button class="btn" onclick="actionCreateAlliance('military')">اتحاد نظامی</button>
+            <button class="btn" onclick="actionCreateAlliance('economic')">اتحاد اقتصادی</button>
+          </div>
+        </div>
+        <div class="section">
+          <h3>بحران‌های جهانی فعال</h3>
+          <div id="crises-list" class="muted">—</div>
         </div>
       </div>
 

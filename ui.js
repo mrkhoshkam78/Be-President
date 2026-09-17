@@ -56,15 +56,18 @@ function refreshUI() {
   updateHUD(state);
   updateMap(state);
   updateOverview(state);
+  updateUpgradesPanel(state);
   updateEconomyPanel(state);
   updatePopulationPanel(state);
   updateMilitaryPanel(state);
+  updateWarsPanel(state);
   updateIntelPanel(state);
   updateDiplomacyPanel(state);
   updateSanctionsPanel(state);
   updateAdvisorPanel(state);
   updatePresidentPanel(state);
   updateStatsPanel(state);
+  updateNewsPanel(state);
   updateTimeControls(state);
 }
 
@@ -192,12 +195,13 @@ function updateEconomyPanel(state) {
     const rating = typeof getCreditRatingLabel === 'function'
       ? getCreditRatingLabel(e.creditRating || 60)
       : { label: String(e.creditRating || '—'), class: 'rating-bbb' };
+    const fm = typeof formatMoney === 'function' ? formatMoney : (n) => String(n);
     box.innerHTML = [
-      ['GDP', e.gdp.toFixed(1)], ['رشد', e.gdpGrowth.toFixed(2) + '%'],
+      ['GDP', fm(e.gdp)], ['رشد', e.gdpGrowth.toFixed(2) + '%'],
       ['تورم', e.inflation.toFixed(1) + '%'], ['بیکاری', e.unemployment.toFixed(1) + '%'],
-      ['بودجه', e.budget.toFixed(1)], ['درآمد', e.revenue.toFixed(1)],
-      ['هزینه', e.spending.toFixed(1)], ['کسری', e.deficit.toFixed(1)],
-      ['بدهی', e.nationalDebt.toFixed(1)], ['مالیات', e.taxRate + '%'],
+      ['بودجه', fm(e.budget)], ['درآمد', fm(e.revenue)],
+      ['هزینه', fm(e.spending)], ['کسری', fm(e.deficit)],
+      ['بدهی', fm(e.nationalDebt)], ['مالیات', e.taxRate + '%'],
       ['رتبه اعتباری', `<span class="rating-badge ${rating.class}">${rating.label}</span>`]
     ].map(([l, v]) => `<div class="stat-box"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
   }
@@ -1163,3 +1167,222 @@ window.actionRequestLoan = actionRequestLoan;
 window.actionGiveLoan = actionGiveLoan;
 window.previewLoanTaken = previewLoanTaken;
 window.previewLoanGiven = previewLoanGiven;
+
+// ========== V3.0.1 Panels ==========
+
+function updateUpgradesPanel(state) {
+  const grid = $('upgrades-grid');
+  if (!grid) return;
+  const ups = state.upgrades || {};
+  const defs = (typeof UPGRADE_DEFS !== 'undefined') ? UPGRADE_DEFS : {};
+  let html = '';
+  Object.keys(defs).forEach(id => {
+    const def = defs[id];
+    const up = ups[id] || { level: 1, min: 1, max: 100 };
+    const level = up.level || 1;
+    const max = up.max || 100;
+    const pct = Math.round((level / max) * 100);
+    const check = (typeof canUpgrade === 'function') ? canUpgrade(state, id) : { ok: false, cost: 0 };
+    const costStr = typeof formatMoney === 'function' ? formatMoney(check.cost || 0) : (check.cost || 0);
+    const maxed = level >= max;
+    html += `<div class="upgrade-card ${maxed ? 'maxed' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>${def.name || id}</strong>
+        <span class="muted">${def.category || ''}</span>
+      </div>
+      <div style="margin:0.3rem 0;font-size:1.1rem">Level <strong>${level}</strong> / ${max}</div>
+      <div class="level-bar"><div class="level-fill" style="width:${pct}%"></div></div>
+      <p class="muted" style="font-size:0.85rem;margin:0.4rem 0">${def.description || ''}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem">
+        <span>هزینه: <strong>${maxed ? '—' : costStr}</strong></span>
+        <button class="btn btn-sm ${maxed ? '' : 'btn-success'}" 
+          onclick="actionPerformUpgrade('${id}')" 
+          ${maxed || !check.ok ? 'disabled' : ''}
+          title="${maxed ? 'Maximum Level Reached' : (check.reason || '')}">
+          ${maxed ? 'حداکثر سطح' : 'ارتقا'}
+        </button>
+      </div>
+    </div>`;
+  });
+  grid.innerHTML = html || '<p class="muted">سیستم ارتقا در دسترس نیست</p>';
+
+  // Election status
+  const elBox = $('election-status');
+  if (elBox && state.election) {
+    const el = state.election;
+    const monthsTo = (el.nextElectionYear - state.time.year) * 12 + (el.nextElectionMonth - state.time.month);
+    elBox.innerHTML = `
+      <div class="stat-card"><span class="lbl">تأیید عمومی</span><span class="val">${el.approval || 50}%</span></div>
+      <div class="stat-card"><span class="lbl">انتخابات بعدی</span><span class="val">${monthsTo > 0 ? monthsTo + ' ماه' : 'در جریان'}</span></div>
+      <div class="stat-card"><span class="lbl">عملکرد اقتصادی</span><span class="val">${el.performance?.economic || 50}</span></div>
+      <div class="stat-card"><span class="lbl">عملکرد نظامی</span><span class="val">${el.performance?.military || 50}</span></div>
+      <div class="stat-card"><span class="lbl">عملکرد دیپلماتیک</span><span class="val">${el.performance?.diplomatic || 50}</span></div>
+      <div class="stat-card"><span class="lbl">رضایت داخلی</span><span class="val">${el.performance?.domestic || 50}</span></div>
+    `;
+  }
+}
+
+function actionPerformUpgrade(id) {
+  let state = getState();
+  if (!state || typeof performUpgrade !== 'function') return;
+  const res = performUpgrade(state, id);
+  setState(state);
+  refreshUI();
+  if (res.success) showToast(res.message, 'success');
+  else showToast(res.message || 'ارتقاء ناموفق', 'error');
+}
+
+function updateWarsPanel(state) {
+  const warsBox = $('active-wars-list');
+  if (warsBox) {
+    const wars = state.wars || [];
+    if (!wars.length) {
+      warsBox.innerHTML = '<p class="muted">هیچ جنگ فعالی وجود ندارد</p>';
+    } else {
+      warsBox.innerHTML = wars.map(w => `
+        <div class="list-card cat-military">
+          <div class="list-card-header">
+            <span>${w.opponentFlag || ''} ${w.opponentName}</span>
+            <span class="status-badge active">${w.status}</span>
+          </div>
+          <div class="list-card-meta">
+            <span>قدرت شما: ${w.playerPower}</span>
+            <span>قدرت دشمن: ${w.enemyPower}</span>
+            <span>احتمال پیروزی: ${Math.round(w.winChance)}%</span>
+            <span>مدت: ${w.durationMonths || 0} ماه</span>
+            <span>تلفات: ${w.casualties || 0}</span>
+            <span>هزینه: ${typeof formatMoney === 'function' ? formatMoney(w.costAccumulated || 0) : (w.costAccumulated || 0)}</span>
+          </div>
+          <div style="margin-top:0.4rem">
+            <button class="btn btn-sm" onclick="actionCeasefire('${w.id}')">پیشنهاد آتش‌بس</button>
+            <button class="btn btn-sm btn-danger" onclick="actionEndWar('${w.id}')">پایان جنگ</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Alliances
+  const allyBox = $('alliances-list');
+  if (allyBox) {
+    const mil = state.alliances?.military || [];
+    const eco = state.alliances?.economic || [];
+    let html = '';
+    mil.forEach(a => {
+      html += `<div class="list-card"><strong>🛡️ ${a.name}</strong> — اعضا: ${a.members?.length || 0} — قدرت: ${a.strength}
+        <button class="btn btn-sm" onclick="actionLeaveAlliance('${a.id}')">خروج</button></div>`;
+    });
+    eco.forEach(a => {
+      html += `<div class="list-card"><strong>💰 ${a.name}</strong> — اعضا: ${a.members?.length || 0} — قدرت: ${a.strength}
+        <button class="btn btn-sm" onclick="actionLeaveAlliance('${a.id}')">خروج</button></div>`;
+    });
+    allyBox.innerHTML = html || '<p class="muted">اتحاد فعالی وجود ندارد</p>';
+  }
+
+  // Crises
+  const crisBox = $('crises-list');
+  if (crisBox) {
+    const crises = state.crises || [];
+    crisBox.innerHTML = crises.length ? crises.map(c => `
+      <div class="list-card cat-news">
+        <strong>🌍 ${c.name}</strong> — شدت: ${c.severity} — مدت: ${c.duration || 0} ماه
+        <div style="margin-top:0.3rem">
+          <button class="btn btn-sm" onclick="actionCrisisDecision('${c.id}','quarantine')">قرنطینه</button>
+          <button class="btn btn-sm" onclick="actionCrisisDecision('${c.id}','stimulus')">حمایت اقتصادی</button>
+          <button class="btn btn-sm" onclick="actionCrisisDecision('${c.id}','international_coop')">همکاری بین‌المللی</button>
+          <button class="btn btn-sm" onclick="actionCrisisDecision('${c.id}','ignore')">عدم مداخله</button>
+        </div>
+      </div>
+    `).join('') : '<p class="muted">بحران فعالی وجود ندارد</p>';
+  }
+}
+
+function actionStartWar() {
+  const target = $('war-target')?.value;
+  if (!target) { showToast('کشور هدف را انتخاب کنید', 'error'); return; }
+  let state = getState();
+  const res = typeof startWar === 'function' ? startWar(state, target) : { success: false, message: 'سیستم جنگ در دسترس نیست' };
+  setState(state);
+  refreshUI();
+  showToast(res.message || (res.success ? 'جنگ آغاز شد' : 'ناموفق'), res.success ? 'warning' : 'error');
+}
+
+function actionCeasefire(warId) {
+  let state = getState();
+  if (typeof proposeCeasefire === 'function') proposeCeasefire(state, warId);
+  setState(state);
+  refreshUI();
+  showToast('آتش‌بس پیشنهاد شد', 'info');
+}
+
+function actionEndWar(warId) {
+  let state = getState();
+  if (typeof endWar === 'function') endWar(state, warId, 'peace');
+  setState(state);
+  refreshUI();
+  showToast('جنگ پایان یافت', 'info');
+}
+
+function actionCreateAlliance(type) {
+  const target = $('ally-target')?.value;
+  if (!target) { showToast('کشور را انتخاب کنید', 'error'); return; }
+  let state = getState();
+  if (typeof createAlliance === 'function') createAlliance(state, type, [target]);
+  setState(state);
+  refreshUI();
+  showToast('اتحاد ایجاد شد', 'success');
+}
+
+function actionLeaveAlliance(id) {
+  let state = getState();
+  if (typeof leaveAlliance === 'function') leaveAlliance(state, id);
+  setState(state);
+  refreshUI();
+  showToast('از اتحاد خارج شدید', 'info');
+}
+
+function actionCrisisDecision(crisisId, decision) {
+  let state = getState();
+  if (typeof crisisDecision === 'function') crisisDecision(state, crisisId, decision);
+  setState(state);
+  refreshUI();
+  showToast('تصمیم بحران اعمال شد', 'info');
+}
+
+function updateNewsPanel(state) {
+  const feed = $('news-feed');
+  if (!feed) return;
+  const news = state.news || [];
+  if (!news.length) {
+    feed.innerHTML = '<p class="muted">خبری وجود ندارد</p>';
+    return;
+  }
+  feed.innerHTML = news.slice(0, 40).map(n => `
+    <div class="news-item ${n.important ? 'important' : ''} ${n.read ? 'read' : ''}" onclick="markNewsItemRead('${n.id}')">
+      <div class="news-icon">${n.icon || '📰'}</div>
+      <div class="news-body">
+        <div class="news-title">${n.title}</div>
+        <div class="news-summary">${n.summary || ''}</div>
+        ${n.line2 ? `<div class="news-line2 muted" style="font-size:0.88rem;margin-top:0.25rem">${n.line2}</div>` : ''}
+        <div class="news-meta muted">${n.year}/${String(n.month).padStart(2,'0')} · ${n.type || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function markNewsItemRead(id) {
+  let state = getState();
+  if (typeof markNewsRead === 'function') markNewsRead(state, id);
+  setState(state);
+  updateNewsBadge();
+  updateNewsPanel(state);
+}
+
+window.actionPerformUpgrade = actionPerformUpgrade;
+window.actionStartWar = actionStartWar;
+window.actionCeasefire = actionCeasefire;
+window.actionEndWar = actionEndWar;
+window.actionCreateAlliance = actionCreateAlliance;
+window.actionLeaveAlliance = actionLeaveAlliance;
+window.actionCrisisDecision = actionCrisisDecision;
+window.markNewsItemRead = markNewsItemRead;
