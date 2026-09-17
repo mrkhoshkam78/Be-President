@@ -1006,3 +1006,155 @@ body::before {
   border-color: var(--primary) !important;
   color: #fff !important;
 }
+
+/* ─── Country card details ─── */
+.country-card .c-region { font-size: 0.72rem; margin-bottom: 0.35rem; }
+.country-card .c-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.country-card .c-stats {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 0.45rem;
+  flex-wrap: wrap;
+}
+.country-card .c-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; }
+
+/* ─── Attack command grid ─── */
+.attack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+.attack-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.75rem 0.5rem;
+  background: linear-gradient(165deg, var(--bg-elevated), var(--bg-panel));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: 0.15s ease;
+  font-family: inherit;
+}
+.attack-btn .ab-ico { font-size: 1.5rem; }
+.attack-btn:hover {
+  border-color: var(--primary);
+  background: rgba(59,130,246,0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.attack-btn.danger:hover {
+  border-color: var(--danger);
+  background: rgba(239,68,68,0.12);
+}
+.btn-lg {
+  padding: 0.65rem 1.2rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 700 !important;
+}
+
+/* ─── Military asset cards ─── */
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.55rem;
+}
+.asset-card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: linear-gradient(135deg, rgba(30,40,60,0.9), rgba(15,20,35,0.95));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  transition: border-color 0.15s;
+}
+.asset-card:hover { border-color: var(--border-bright); }
+.asset-ico { font-size: 1.5rem; flex-shrink: 0; }
+.asset-name { font-size: 0.7rem; color: var(--text-muted); }
+.asset-val { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ─── Budget flow ─── */
+.budget-flow { display: flex; flex-direction: column; gap: 0.4rem; }
+.bf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+}
+.bf-row.total {
+  border-color: var(--gold);
+  background: rgba(232,184,74,0.08);
+  font-weight: 600;
+}
+
+/* ─── Event modal ─── */
+.event-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+  backdrop-filter: blur(5px);
+}
+.event-modal-overlay.show { display: flex; }
+.event-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-bright);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 460px;
+  width: 92%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+.event-choice-btn {
+  display: block;
+  width: 100%;
+  text-align: right;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  transition: 0.15s;
+}
+.event-choice-btn:hover {
+  border-color: var(--primary);
+  background: rgba(59,130,246,0.1);
+}
+.choice-pros { display: block; font-size: 0.78rem; color: var(--green); margin-top: 0.25rem; }
+.choice-cons { display: block; font-size: 0.78rem; color: var(--red); }
+
+/* War command section accent */
+.war-command {
+  border-color: rgba(239,68,68,0.25);
+  background: linear-gradient(165deg, rgba(40,15,15,0.3), var(--bg-panel));
+}
+
+/* Select screen title spacing */
+.select-screen h2 { color: var(--text); margin-bottom: 0.5rem; }

@@ -227,23 +227,32 @@ function checkGameOver(state) {
 function renderCountryCards() {
   const container = $('country-cards');
   if (!container) return;
-  container.innerHTML = PLAYABLE_COUNTRIES.map(c => `
+  if (typeof PLAYABLE_COUNTRIES === 'undefined' || !PLAYABLE_COUNTRIES.length) {
+    container.innerHTML = '<p class="muted">خطا: داده کشورهای بارگذاری نشد. صفحه را رفرش کنید.</p>';
+    console.error('PLAYABLE_COUNTRIES missing');
+    return;
+  }
+  container.innerHTML = PLAYABLE_COUNTRIES.map(c => {
+    const strengths = Array.isArray(c.strengths) ? c.strengths : [];
+    const weaknesses = Array.isArray(c.weaknesses) ? c.weaknesses : [];
+    const popM = ((c.population || 0) / 1e6).toFixed(0);
+    return `
     <div class="country-card" data-country="${c.id}" onclick="selectCountry('${c.id}')">
-      <div class="c-flag">${c.flag}</div>
-      <h3>${c.name}</h3>
-      <div class="c-region">${c.region}</div>
-      <p class="c-desc">${c.description}</p>
+      <div class="flag">${c.flag || '🏳️'}</div>
+      <h3>${c.name || c.id}</h3>
+      <div class="c-region muted">${c.region || ''}</div>
+      <p class="c-desc">${c.description || ''}</p>
       <div class="c-stats">
-        <span>👥 ${(c.population/1e6).toFixed(0)}M</span>
-        <span>💰 ${c.baseGDP}</span>
-        <span>⚔️ ${c.militaryPower || 40}</span>
+        <span title="جمعیت">👥 ${popM}M</span>
+        <span title="GDP پایه">💰 ${c.baseGDP || 0}</span>
+        <span title="قدرت نظامی">⚔️ ${c.militaryPower || 40}</span>
       </div>
       <div class="c-tags">
-        ${c.strengths.slice(0,2).map(s => `<span class="tag good">${s}</span>`).join('')}
-        ${c.weaknesses.slice(0,1).map(w => `<span class="tag bad">${w}</span>`).join('')}
+        ${strengths.slice(0,2).map(s => `<span class="tag good">${s}</span>`).join('')}
+        ${weaknesses.slice(0,1).map(w => `<span class="tag bad">${w}</span>`).join('')}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function showEventModal(pending) {

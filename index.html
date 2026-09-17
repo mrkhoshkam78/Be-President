@@ -323,27 +323,34 @@
           <h3>جنگ‌های فعال</h3>
           <div id="active-wars-list" class="muted">هیچ جنگ فعالی وجود ندارد</div>
         </div>
-        <div class="section">
-          <h3>عملیات نظامی</h3>
+        <div class="section war-command">
+          <h3>⚔️ فرماندهی عملیات</h3>
           <div class="form-row">
-            <select id="war-target" class="country-select"><option value="">انتخاب کشور هدف...</option></select>
+            <label>کشور هدف</label>
+            <select id="war-target" class="country-select" style="min-width:200px"><option value="">انتخاب کشور...</option></select>
+            <button class="btn btn-danger btn-lg" onclick="actionStartWar()" id="btn-declare-war">🚨 اعلام جنگ / شروع درگیری</button>
           </div>
-          <div class="form-row attack-types" style="flex-wrap:wrap;gap:0.4rem">
-            <button class="btn btn-sm" onclick="actionMilOp('ground')">🪖 زمینی</button>
-            <button class="btn btn-sm" onclick="actionMilOp('air')">✈️ هوایی</button>
-            <button class="btn btn-sm" onclick="actionMilOp('missile')">🚀 موشکی</button>
-            <button class="btn btn-sm" onclick="actionMilOp('naval')">🚢 دریایی</button>
-            <button class="btn btn-sm" onclick="actionMilOp('military_facilities')">🏭 تأسیسات نظامی</button>
-            <button class="btn btn-sm" onclick="actionMilOp('economic_facilities')">🏗️ اقتصادی</button>
-            <button class="btn btn-sm btn-danger" onclick="actionMilOp('residential')">🏙️ مسکونی</button>
-            <button class="btn btn-sm btn-danger" onclick="actionMilOp('assassination')">🎯 ترور</button>
+          <p class="muted" style="margin:0.5rem 0 0.7rem;font-size:0.8rem">ابتدا کشور را انتخاب کنید، سپس اعلام جنگ یا نوع حمله را بزنید.</p>
+          <div class="attack-grid">
+            <button class="attack-btn" onclick="actionMilOp('ground')"><span class="ab-ico">🪖</span><span>حمله زمینی</span></button>
+            <button class="attack-btn" onclick="actionMilOp('air')"><span class="ab-ico">✈️</span><span>حمله هوایی</span></button>
+            <button class="attack-btn" onclick="actionMilOp('missile')"><span class="ab-ico">🚀</span><span>حمله موشکی</span></button>
+            <button class="attack-btn" onclick="actionMilOp('naval')"><span class="ab-ico">🚢</span><span>حمله دریایی</span></button>
+            <button class="attack-btn" onclick="actionMilOp('military_facilities')"><span class="ab-ico">🏭</span><span>تأسیسات نظامی</span></button>
+            <button class="attack-btn" onclick="actionMilOp('economic_facilities')"><span class="ab-ico">🏗️</span><span>تأسیسات اقتصادی</span></button>
+            <button class="attack-btn danger" onclick="actionMilOp('residential')"><span class="ab-ico">🏙️</span><span>مناطق مسکونی</span></button>
+            <button class="attack-btn danger" onclick="actionMilOp('assassination')"><span class="ab-ico">🎯</span><span>ترور هدفمند</span></button>
           </div>
-          <div class="form-row">
-            <label>تعداد موشک:</label>
+          <div class="form-row" style="margin-top:0.7rem">
+            <label>تعداد موشک</label>
             <input type="number" id="missile-count" value="2" min="1" max="20" style="width:70px" />
             <span class="muted" id="missile-stock">موجودی: —</span>
           </div>
           <div id="leaders-box" class="muted" style="margin-top:0.5rem"></div>
+        </div>
+        <div class="section">
+          <h3>🛡️ دارایی‌های نظامی</h3>
+          <div id="military-assets" class="asset-grid"></div>
         </div>
         <div class="section">
           <h3>تولید تجهیزات نظامی</h3>

@@ -246,6 +246,34 @@ function updateEconomyPanel(state) {
       </div>
     </div>`;
   }
+  // Budget logic explanation
+  let logic = $('budget-logic-box');
+  if (!logic) {
+    const ecoPanel = $('economy');
+    if (ecoPanel) {
+      logic = document.createElement('div');
+      logic.id = 'budget-logic-box';
+      logic.className = 'section';
+      const stats = $('eco-stats');
+      if (stats && stats.parentNode) stats.parentNode.insertBefore(logic, stats.nextSibling);
+      else ecoPanel.appendChild(logic);
+    }
+  }
+  if (logic) {
+    const e = state.economy;
+    const taxRev = Math.round((e.gdp || 0) * ((e.taxRate || 20) / 100) * 0.35 * 10) / 10;
+    const milSpend = e.milBudgetAmount || state.military?.budgetAmount || 12;
+    logic.innerHTML = `<h3>📊 منطق بودجه (ماهانه تقریبی)</h3>
+      <div class="budget-flow">
+        <div class="bf-row"><span>درآمد مالیاتی ≈ GDP × نرخ مالیات × ضریب وصول</span><strong class="positive">+${typeof formatMoney==='function'?formatMoney(e.revenue||taxRev): (e.revenue||taxRev)}</strong></div>
+        <div class="bf-row"><span>درآمد منابع / تجارت</span><strong class="positive">+${typeof formatMoney==='function'?formatMoney(e.resourceIncome||0):(e.resourceIncome||0)}</strong></div>
+        <div class="bf-row"><span>هزینه جاری + نظامی + پروژه‌ها</span><strong class="negative">−${typeof formatMoney==='function'?formatMoney(e.spending||0):(e.spending||0)}</strong></div>
+        <div class="bf-row total"><span>بودجه نقدی فعلی</span><strong class="${(e.budget||0)>=0?'positive':'negative'}">${typeof formatMoney==='function'?formatMoney(e.budget):e.budget}</strong></div>
+        <div class="bf-row"><span>بدهی ملی / نسبت به GDP</span><strong>${typeof formatMoney==='function'?formatMoney(e.nationalDebt):e.nationalDebt} (${e.gdp>0?((e.nationalDebt/e.gdp)*100).toFixed(0):'—'}%)</strong></div>
+      </div>
+      <p class="muted" style="font-size:0.78rem;margin-top:0.5rem">بودجه هر ماه از درآمد (مالیات + منابع + تجارت) منهای هزینه‌ها به‌روز می‌شود. وام، جنگ و بحران بودجه را کم یا زیاد می‌کنند. ارتقا و تولید تجهیزات مستقیماً از بودجه نقدی کسر می‌شود.</p>`;
+  }
+
   // Fill loan country selects
   fillLoanCountrySelects(state);
   renderLoansList(state);
@@ -1504,6 +1532,35 @@ function updateWarsPanel(state) {
         </div>`).join('');
     }
   }
+  // Military assets overview
+  const assetsBox = $('military-assets');
+  if (assetsBox) {
+    const m = state.military || {};
+    const eq = m.equipment || {};
+    const items = [
+      { ico: '🪖', name: 'ارتش (نفرات نسبی)', val: Math.round(m.army || 0), unit: '/100' },
+      { ico: '✈️', name: 'نیروی هوایی', val: Math.round(m.airForce || 0), unit: '/100' },
+      { ico: '🚢', name: 'نیروی دریایی', val: Math.round(m.navy || 0), unit: '/100' },
+      { ico: '🛡️', name: 'سامانه دفاعی', val: Math.round(m.defenseSystems || 0), unit: '/100' },
+      { ico: '🚀', name: 'موشک', val: eq.missiles || 0, unit: 'واحد' },
+      { ico: '🛡️', name: 'تانک', val: eq.tanks || 0, unit: 'واحد' },
+      { ico: '🚛', name: 'نفربر زرهی', val: eq.apc || 0, unit: 'واحد' },
+      { ico: '📡', name: 'پدافند هوایی', val: eq.antiAir || 0, unit: 'واحد' },
+      { ico: '🛰️', name: 'ضدموشک', val: eq.antiMissile || 0, unit: 'واحد' },
+      { ico: '🎖️', name: 'نیروهای ویژه', val: eq.specialForces || 0, unit: 'واحد' },
+      { ico: '👥', name: 'نیروی انسانی', val: Math.round((m.manpower || 0)/1000), unit: 'هزار' },
+      { ico: '⚡', name: 'آمادگی', val: Math.round(m.readiness || 0), unit: '%' }
+    ];
+    assetsBox.innerHTML = items.map(it => `
+      <div class="asset-card">
+        <div class="asset-ico">${it.ico}</div>
+        <div class="asset-info">
+          <div class="asset-name">${it.name}</div>
+          <div class="asset-val">${it.val} <span class="muted">${it.unit}</span></div>
+        </div>
+      </div>`).join('');
+  }
+
   // Equipment stock
   const eqBox = $('equipment-stock');
   if (eqBox) {
