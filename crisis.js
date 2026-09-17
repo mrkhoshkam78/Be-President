@@ -51,6 +51,15 @@ function startCrisis(state, typeId) {
   // Initial impact
   applyCrisisImpact(state, crisis, 1);
 
+  if (typeof pushNotification === 'function') {
+    pushNotification(state, {
+      severity: 'critical',
+      category: 'crisis',
+      title: 'بحران جهانی: ' + def.name,
+      body: 'یک بحران ' + def.name + ' آغاز شده و می‌تواند زنجیره‌ای از مشکلات ایجاد کند.',
+      line2: 'تصمیمات دولت بر رضایت و بودجه اثر دارد.'
+    });
+  }
   if (typeof addNews === 'function') {
     addNews(state, {
       type: 'global',

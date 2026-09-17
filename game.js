@@ -157,10 +157,13 @@ function processTick() {
   state = processIntelligenceTick(state);
   state = processDiplomacyTick(state);
   if (typeof processUpgradeProjects === 'function') state = processUpgradeProjects(state);
+  if (typeof processProductionProjects === 'function') state = processProductionProjects(state);
   if (typeof updateWars === 'function') state = updateWars(state);
   if (typeof updateCrises === 'function') state = updateCrises(state);
   if (typeof maybeTriggerCrisis === 'function' && state.meta.tickCount % 3 === 0) state = maybeTriggerCrisis(state);
   if (typeof updateElectionState === 'function') state = updateElectionState(state);
+  if (typeof computeStrengthsWeaknesses === 'function' && state.meta.tickCount % 2 === 0) computeStrengthsWeaknesses(state);
+  if (typeof enforceMilitaryLimits === 'function') enforceMilitaryLimits(state);
   state = processEvents(state);
 
   // Projects

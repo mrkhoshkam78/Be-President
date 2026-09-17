@@ -47,7 +47,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '3.0.1',
+      version: '3.3.0',
       isRunning: false,
       speed: 1,
       tickCount: 0,
@@ -133,7 +133,15 @@ function createInitialState(difficultyId, countryId) {
       attackPower: 0,
       defensePower: 0,
       manpower: Math.round(country.population * 0.0065),
-      activeOperations: []
+      activeOperations: [],
+      equipment: {
+        missiles: Math.round(8 + (country.military?.tech || 40) / 8),
+        tanks: Math.round(5 + (country.military?.army || 40) / 10),
+        apc: Math.round(10 + (country.military?.army || 40) / 8),
+        antiAir: Math.round(4 + (country.military?.tech || 40) / 12),
+        antiMissile: Math.round(2 + (country.military?.tech || 40) / 20),
+        specialForces: (country.techLevel || 40) >= 55 ? 1 : 0
+      }
     },
 
     intelligence: {
@@ -223,8 +231,11 @@ function createInitialState(difficultyId, countryId) {
     // Data reference
     dataRef: {
       year: 2024,
-      source: 'IMF / World Bank / SIPRI scaled for gameplay (V3.0.1)'
-    }
+      source: 'IMF / World Bank / SIPRI scaled for gameplay (V3.3.0)'
+    },
+    notifications: [],
+    notificationsUnread: 0,
+    derived: { strengths: [], weaknesses: [] }
   };
 }
 
@@ -242,6 +253,8 @@ function resetState(difficultyId, countryId) {
   if (typeof updateMilitaryPowers === 'function') {
     updateMilitaryPowers(GameState);
   }
+  if (typeof computeStrengthsWeaknesses === 'function') computeStrengthsWeaknesses(GameState);
+  if (typeof ensureEquipment === 'function') ensureEquipment(GameState);
   // Seed initial news
   if (typeof addNews === 'function') {
     addNews(GameState, {

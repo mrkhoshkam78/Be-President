@@ -1,7 +1,7 @@
 // save.js - LocalStorage Save / Load / New Game
 
-const SAVE_KEY = 'be_president_v3_save';
-const META_KEY = 'be_president_v3_meta';
+const SAVE_KEY = 'be_president_v33_save';
+const META_KEY = 'be_president_v33_meta';
 const OLD_SAVE_KEY = 'be_president_v2_save';
 const OLD_META_KEY = 'be_president_v2_meta';
 
@@ -87,12 +87,25 @@ function loadGame() {
       if (!state.dataRef) state.dataRef = { year: 2024, source: 'IMF/WB scaled V3' };
       state.meta.version = '3.0.1';
     }
+    // V3.3.0 migration
+    if (!state.meta.version || state.meta.version < '3.3.0') {
+      if (!state.military) state.military = {};
+      if (!state.military.equipment) {
+        state.military.equipment = { missiles: 10, tanks: 6, apc: 12, antiAir: 5, antiMissile: 2, specialForces: 0 };
+      }
+      if (!state.notifications) state.notifications = [];
+      if (state.notificationsUnread == null) state.notificationsUnread = 0;
+      if (!state.derived) state.derived = { strengths: [], weaknesses: [] };
+      if (typeof computeStrengthsWeaknesses === 'function') computeStrengthsWeaknesses(state);
+      state.meta.version = '3.3.0';
+    }
+
     setState(state);
     hideStartScreens();
     showPanel('map');
     refreshUI();
     startGameLoop();
-    return { success: true, state, message: 'بازی بارگذاری شد (V3.0.1)' };
+    return { success: true, state, message: 'بازی بارگذاری شد (V3.3.0)' };
   } catch (err) {
     return { success: false, message: 'خطا در بارگذاری' };
   }
