@@ -1,0 +1,466 @@
+/**
+ * map.js — Interactive Political World Map Engine V3.6
+ * SVG-based grand-strategy style map connected to Game State.
+ * Geometry: simplified country polygons (equirectangular 1000×500).
+ */
+(function (g) {
+  'use strict';
+
+  const VB_W = 1000, VB_H = 500;
+
+  // Approximate country polygons [x,y] in viewBox coords (0–1000, 0–500)
+  // Hand-tuned simplified shapes for playable set — not traced from copyrighted maps
+  const COUNTRY_POLYS = {
+    usa: [[95,145],[145,135],[175,145],[195,165],[200,195],[185,215],[155,220],[125,210],[95,195],[80,175],[85,155]],
+    canada: [[90,85],[150,70],[200,75],[240,90],[230,120],[180,125],[140,130],[100,125],[85,105]],
+    mexico: [[85,210],[125,205],[145,220],[140,250],[115,260],[90,245],[80,225]],
+    brazil: [[230,280],[280,270],[310,290],[320,340],[300,380],[260,390],[230,360],[220,320]],
+    argentina: [[240,390],[275,385],[285,430],[270,460],[245,465],[230,430]],
+    chile: [[225,390],[238,395],[242,450],[235,470],[225,460]],
+    colombia: [[195,265],[225,260],[235,285],[220,305],[195,300]],
+    peru: [[195,310],[225,305],[230,345],[205,355],[190,335]],
+    uk: [[405,105],[425,100],[435,115],[425,130],[410,128],[400,115]],
+    ireland: [[385,110],[400,108],[405,122],[392,128],[382,120]],
+    france: [[430,140],[455,135],[465,155],[455,170],[430,168],[420,150]],
+    spain: [[395,165],[425,160],[435,180],[420,195],[395,190]],
+    portugal: [[385,170],[398,168],[400,190],[388,195]],
+    germany: [[465,120],[490,115],[500,135],[490,150],[465,148],[458,130]],
+    italy: [[480,160],[500,155],[510,180],[505,205],[490,210],[480,185]],
+    netherlands: [[455,110],[470,108],[472,120],[458,122]],
+    belgium: [[448,122],[462,120],[464,132],[450,134]],
+    switzerland: [[462,145],[478,143],[480,155],[464,157]],
+    austria: [[485,140],[505,138],[508,152],[488,154]],
+    poland: [[505,115],[530,112],[535,140],[510,145],[500,130]],
+    czech: [[490,130],[510,128],[512,142],[492,144]],
+    hungary: [[510,145],[530,143],[532,158],[512,160]],
+    romania: [[530,145],[555,142],[560,165],[535,170]],
+    ukraine: [[540,115],[590,110],[600,145],[555,155],[535,140]],
+    sweden: [[500,55],[525,50],[535,95],[510,100],[495,80]],
+    norway: [[480,45],[510,40],[520,85],[495,95],[475,70]],
+    finland: [[530,50],[560,48],[565,95],[540,100],[525,75]],
+    greece: [[520,175],[540,170],[545,195],[525,200]],
+    russia: [[560,60],[720,55],[850,80],[880,120],[820,150],[700,145],[600,140],[550,115],[540,85]],
+    turkey: [[545,165],[595,160],[610,180],[580,195],[545,185]],
+    egypt: [[530,210],[560,205],[565,235],[540,245],[525,230]],
+    saudi: [[575,210],[625,205],[640,245],[600,260],[575,240]],
+    uae: [[625,225],[645,222],[648,240],[628,242]],
+    qatar: [[618,230],[628,228],[630,242],[620,244]],
+    kuwait: [[600,215],[615,213],[618,225],[602,228]],
+    iraq: [[575,185],[605,180],[615,205],[585,215],[570,200]],
+    iran: [[610,175],[665,170],[680,205],[645,225],[605,210]],
+    israel: [[555,195],[568,192],[570,210],[557,212]],
+    south_africa: [[510,370],[560,365],[570,405],[530,420],[505,400]],
+    nigeria: [[450,265],[485,260],[495,295],[460,305],[445,285]],
+    algeria: [[420,200],[480,195],[490,245],[450,260],[415,235]],
+    morocco: [[390,195],[425,190],[435,220],[405,230],[385,215]],
+    ethiopia: [[555,270],[595,265],[605,305],[570,315],[550,295]],
+    kenya: [[565,305],[595,300],[600,335],[570,340]],
+    india: [[680,215],[730,205],[750,250],[730,295],[690,290],[670,250]],
+    pakistan: [[655,195],[690,190],[700,225],[670,240],[650,220]],
+    bangladesh: [[725,235],[750,230],[755,255],[730,260]],
+    china: [[720,130],[820,120],[860,160],[840,210],[780,220],[730,190],[710,155]],
+    japan: [[875,145],[905,140],[915,175],[895,185],[875,170]],
+    south_korea: [[855,160],[875,155],[880,180],[860,185]],
+    taiwan: [[850,195],[865,192],[868,210],[852,213]],
+    indonesia: [[800,295],[880,285],[920,310],[880,335],[810,330],[790,310]],
+    thailand: [[780,245],[815,240],[825,280],[800,290],[775,270]],
+    vietnam: [[810,235],[840,230],[850,280],[825,295],[805,265]],
+    malaysia: [[800,295],[845,290],[860,315],[820,325],[795,310]],
+    philippines: [[860,250],[890,245],[900,290],[870,300],[855,275]],
+    singapore: [[825,315],[838,313],[840,325],[827,327]],
+    australia: [[830,360],[920,350],[950,400],[900,440],[840,430],[815,395]],
+    new_zealand: [[940,430],[970,425],[975,460],[950,470],[935,450]],
+    kazakhstan: [[620,115],[700,105],[720,145],[660,160],[615,140]]
+  };
+
+  // Base fill colors (muted political palette)
+  const COUNTRY_COLORS = {
+    usa:'#3d5a80', canada:'#4a6fa5', mexico:'#5c7a5e', brazil:'#3d7a5a',
+    argentina:'#5a7a9a', chile:'#6a5a7a', colombia:'#7a6a4a', peru:'#6a7a5a',
+    uk:'#5a6a9a', ireland:'#4a8a5a', france:'#4a6aaa', spain:'#9a7a4a',
+    portugal:'#6a8a5a', germany:'#6a6a7a', italy:'#5a8a6a', netherlands:'#8a6a4a',
+    belgium:'#7a7a5a', switzerland:'#8a5a5a', austria:'#6a5a8a', poland:'#8a5a6a',
+    czech:'#5a7a8a', hungary:'#7a5a6a', romania:'#8a6a5a', ukraine:'#5a8aaa',
+    sweden:'#4a7aaa', norway:'#3a6a9a', finland:'#5a8aba', greece:'#4a8a9a',
+    russia:'#5a4a6a', turkey:'#8a5a4a', egypt:'#9a8a5a', saudi:'#7a9a5a',
+    uae:'#5a9a7a', qatar:'#4a8a8a', kuwait:'#6a9a6a', iraq:'#8a7a4a',
+    iran:'#7a6a5a', israel:'#5a7a9a', south_africa:'#6a8a4a', nigeria:'#5a8a5a',
+    algeria:'#8a9a5a', morocco:'#7a8a4a', ethiopia:'#6a7a4a', kenya:'#5a7a4a',
+    india:'#8a7a3a', pakistan:'#5a7a4a', bangladesh:'#4a8a5a', china:'#8a4a4a',
+    japan:'#8a5a6a', south_korea:'#6a5a8a', taiwan:'#5a6a8a', indonesia:'#4a7a6a',
+    thailand:'#7a5a8a', vietnam:'#5a8a6a', malaysia:'#6a7a5a', philippines:'#5a6a9a',
+    singapore:'#8a6a5a', australia:'#6a7a4a', new_zealand:'#4a7a6a', kazakhstan:'#7a6a5a'
+  };
+
+  const DIPLO_STYLES = {
+    player:  { stroke: '#38bdf8', glow: 'rgba(56,189,248,0.55)', fillBoost: 0.15, width: 1.8 },
+    allied:  { stroke: '#34d399', glow: 'rgba(52,211,153,0.4)',  fillBoost: 0.08, width: 1.4 },
+    friendly:{ stroke: '#6ee7b7', glow: 'rgba(110,231,183,0.25)',fillBoost: 0.04, width: 1.2 },
+    neutral: { stroke: 'rgba(148,163,184,0.55)', glow: 'rgba(148,163,184,0.12)', fillBoost: 0, width: 1.0 },
+    tense:   { stroke: '#fb923c', glow: 'rgba(251,146,60,0.35)', fillBoost: 0.05, width: 1.3 },
+    hostile: { stroke: '#f87171', glow: 'rgba(248,113,113,0.4)',  fillBoost: 0.08, width: 1.4 },
+    enemy:   { stroke: '#ef4444', glow: 'rgba(239,68,68,0.5)',   fillBoost: 0.1,  width: 1.6 },
+    war:     { stroke: '#dc2626', glow: 'rgba(220,38,38,0.65)',  fillBoost: 0.18, width: 2.0 }
+  };
+
+  let mapState = {
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    selected: null,
+    hovered: null,
+    ready: false,
+    searchQuery: ''
+  };
+
+  function polyToPath(pts) {
+    if (!pts || pts.length < 3) return '';
+    return pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ') + ' Z';
+  }
+
+  function centroid(pts) {
+    let x = 0, y = 0;
+    pts.forEach(p => { x += p[0]; y += p[1]; });
+    return { x: x / pts.length, y: y / pts.length };
+  }
+
+  function getDiploStatus(state, countryId) {
+    if (!state) return 'neutral';
+    if (state.country && state.country.id === countryId) return 'player';
+    const atWar = (state.wars || []).some(w => w.opponent === countryId || w.target === countryId);
+    if (atWar) return 'war';
+    const allies = new Set();
+    (state.alliances?.military || []).forEach(a => (a.members || []).forEach(m => allies.add(m)));
+    (state.alliances?.economic || []).forEach(a => (a.members || []).forEach(m => allies.add(m)));
+    if (allies.has(countryId)) return 'allied';
+    const rel = state.diplomacy?.relations?.[countryId];
+    const val = typeof getRelationValue === 'function' ? getRelationValue(rel) : (typeof rel === 'number' ? rel : 50);
+    if (val >= 75) return 'friendly';
+    if (val >= 45) return 'neutral';
+    if (val >= 30) return 'tense';
+    if (val >= 15) return 'hostile';
+    return 'enemy';
+  }
+
+  function buildSVG(state) {
+    const countries = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : []);
+    let paths = '';
+    let labels = '';
+    const shownLabels = [];
+
+    countries.forEach(c => {
+      const pts = COUNTRY_POLYS[c.id];
+      if (!pts) return;
+      const d = polyToPath(pts);
+      const ctr = centroid(pts);
+      const status = getDiploStatus(state, c.id);
+      const style = DIPLO_STYLES[status] || DIPLO_STYLES.neutral;
+      const base = COUNTRY_COLORS[c.id] || '#4a5568';
+      const isSel = mapState.selected === c.id;
+      const isHov = mapState.hovered === c.id;
+      const dim = mapState.selected && !isSel && status !== 'player' ? 0.55 : 1;
+      const strokeW = (isSel ? style.width + 0.8 : isHov ? style.width + 0.4 : style.width);
+      const glowOp = isSel ? 0.9 : isHov ? 0.7 : 0.5;
+
+      paths += `<path class="map-country" data-id="${c.id}" data-status="${status}" d="${d}"
+        fill="${base}" fill-opacity="${(0.72 + style.fillBoost) * dim}"
+        stroke="${style.stroke}" stroke-width="${strokeW}"
+        style="filter:drop-shadow(0 0 ${isSel || isHov ? 4 : 2}px ${style.glow}); opacity:${dim}; cursor:pointer;"
+        />`;
+
+      // Smart labels — skip if too crowded
+      const short = c.name.length > 10 ? (c.name.slice(0, 8) + '…') : c.name;
+      const fontSize = pts.length > 8 ? 9 : pts.length > 5 ? 7.5 : 6.5;
+      // simple overlap avoidance: skip if near existing
+      let overlap = false;
+      for (const L of shownLabels) {
+        if (Math.hypot(L.x - ctr.x, L.y - ctr.y) < 18) { overlap = true; break; }
+      }
+      if (!overlap || status === 'player' || isSel) {
+        shownLabels.push(ctr);
+        labels += `<text class="map-label" data-id="${c.id}" x="${ctr.x.toFixed(1)}" y="${ctr.y.toFixed(1)}"
+          text-anchor="middle" dominant-baseline="middle"
+          font-size="${isSel ? fontSize + 1.5 : fontSize}"
+          fill="${status === 'player' ? '#e0f2fe' : '#e2e8f0'}"
+          style="pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,0.85); font-weight:${isSel || status==='player' ? 700 : 500}; opacity:${dim}">
+          ${short}</text>`;
+      }
+    });
+
+    return `
+      <defs>
+        <pattern id="map-grid" width="50" height="50" patternUnits="userSpaceOnUse">
+          <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(100,140,180,0.08)" stroke-width="0.5"/>
+        </pattern>
+        <radialGradient id="ocean-grad" cx="50%" cy="45%" r="65%">
+          <stop offset="0%" stop-color="#1a3a5c"/>
+          <stop offset="55%" stop-color="#0f2744"/>
+          <stop offset="100%" stop-color="#0a1628"/>
+        </radialGradient>
+        <filter id="soft-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1.2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#ocean-grad)"/>
+      <rect width="100%" height="100%" fill="url(#map-grid)"/>
+      <g class="map-countries" filter="url(#soft-glow)">${paths}</g>
+      <g class="map-labels">${labels}</g>
+    `;
+  }
+
+  function applyTransform() {
+    const layer = document.getElementById('map-transform-layer');
+    if (!layer) return;
+    const cx = VB_W / 2, cy = VB_H / 2;
+    layer.setAttribute('transform',
+      `translate(${mapState.panX},${mapState.panY}) translate(${cx},${cy}) scale(${mapState.zoom}) translate(${-cx},${-cy})`);
+  }
+
+  function renderMap(state) {
+    const host = document.getElementById('map-world');
+    if (!host) return;
+
+    // Keep structure: viewport + svg + controls overlay
+    let viewport = host.querySelector('.map-viewport');
+    if (!viewport) {
+      host.innerHTML = `
+        <div class="map-viewport" id="map-viewport">
+          <svg id="map-svg" viewBox="0 0 ${VB_W} ${VB_H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="World Map">
+            <g id="map-transform-layer"></g>
+          </svg>
+          <div class="map-tooltip" id="map-tooltip" style="display:none"></div>
+        </div>
+        <div class="map-controls">
+          <button type="button" class="map-ctrl-btn" data-act="zoom-in" title="بزرگ‌نمایی">+</button>
+          <button type="button" class="map-ctrl-btn" data-act="zoom-out" title="کوچک‌نمایی">−</button>
+          <button type="button" class="map-ctrl-btn" data-act="reset" title="بازنشانی">⟲</button>
+          <button type="button" class="map-ctrl-btn" data-act="center" title="مرکز روی کشور من">◎</button>
+        </div>
+        <div class="map-search-wrap">
+          <input type="search" id="map-search" class="map-search" placeholder="جستجوی کشور…" autocomplete="off"/>
+        </div>
+        <div class="map-legend" id="map-legend">
+          <div class="legend-item"><span class="leg-dot player"></span>بازیکن</div>
+          <div class="legend-item"><span class="leg-dot allied"></span>متحد</div>
+          <div class="legend-item"><span class="leg-dot friendly"></span>دوست</div>
+          <div class="legend-item"><span class="leg-dot neutral"></span>بی‌طرف</div>
+          <div class="legend-item"><span class="leg-dot tense"></span>تنش</div>
+          <div class="legend-item"><span class="leg-dot hostile"></span>خصمانه</div>
+          <div class="legend-item"><span class="leg-dot war"></span>در جنگ</div>
+        </div>
+      `;
+      bindMapEvents();
+      viewport = host.querySelector('.map-viewport');
+    }
+
+    const layer = document.getElementById('map-transform-layer');
+    if (layer) {
+      layer.innerHTML = buildSVG(state);
+      applyTransform();
+      // Bind path events
+      layer.querySelectorAll('.map-country').forEach(el => {
+        el.addEventListener('mouseenter', onPathEnter);
+        el.addEventListener('mouseleave', onPathLeave);
+        el.addEventListener('click', onPathClick);
+      });
+    }
+    mapState.ready = true;
+  }
+
+  function onPathEnter(e) {
+    const id = e.currentTarget.getAttribute('data-id');
+    mapState.hovered = id;
+    e.currentTarget.classList.add('hovered');
+    showTooltip(id, e);
+    // soft re-style without full rebuild for perf
+    e.currentTarget.style.filter = 'drop-shadow(0 0 5px rgba(56,189,248,0.6)) brightness(1.12)';
+  }
+
+  function onPathLeave(e) {
+    mapState.hovered = null;
+    e.currentTarget.classList.remove('hovered');
+    hideTooltip();
+    e.currentTarget.style.filter = '';
+  }
+
+  function onPathClick(e) {
+    e.stopPropagation();
+    const id = e.currentTarget.getAttribute('data-id');
+    mapState.selected = id;
+    const state = typeof getState === 'function' ? getState() : null;
+    if (state) renderMap(state);
+    if (typeof onMapCountryClick === 'function') onMapCountryClick(id);
+  }
+
+  function showTooltip(countryId, evt) {
+    const tip = document.getElementById('map-tooltip');
+    if (!tip) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    const c = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : []).find(x => x.id === countryId);
+    if (!c) return;
+    const status = getDiploStatus(state, countryId);
+    const rel = state?.diplomacy?.relations?.[countryId];
+    const val = countryId === state?.country?.id ? '—' :
+      (typeof getRelationValue === 'function' ? Math.round(getRelationValue(rel)) : (typeof rel === 'number' ? Math.round(rel) : '—'));
+    const statusLabel = {
+      player: 'کشور شما', allied: 'متحد', friendly: 'دوست', neutral: 'بی‌طرف',
+      tense: 'تنش', hostile: 'خصمانه', enemy: 'دشمن', war: 'در جنگ'
+    }[status] || status;
+
+    tip.innerHTML = `
+      <div class="tip-head">${c.flag || ''} <strong>${c.name}</strong></div>
+      <div class="tip-row"><span>جمعیت</span><b>${c.population ? (c.population / 1e6).toFixed(0) + 'M' : '—'}</b></div>
+      <div class="tip-row"><span>GDP</span><b>${c.baseGDP ?? '—'}</b></div>
+      <div class="tip-row"><span>نظامی</span><b>${c.militaryPower ?? '—'}</b></div>
+      <div class="tip-row"><span>روابط</span><b>${val}</b></div>
+      <div class="tip-status status-${status}">${statusLabel}</div>
+    `;
+    tip.style.display = 'block';
+    positionTooltip(evt);
+  }
+
+  function positionTooltip(evt) {
+    const tip = document.getElementById('map-tooltip');
+    const vp = document.getElementById('map-viewport');
+    if (!tip || !vp) return;
+    const rect = vp.getBoundingClientRect();
+    let x = (evt.clientX - rect.left) + 14;
+    let y = (evt.clientY - rect.top) + 14;
+    if (x + 200 > rect.width) x = evt.clientX - rect.left - 210;
+    if (y + 160 > rect.height) y = evt.clientY - rect.top - 150;
+    tip.style.left = Math.max(8, x) + 'px';
+    tip.style.top = Math.max(8, y) + 'px';
+  }
+
+  function hideTooltip() {
+    const tip = document.getElementById('map-tooltip');
+    if (tip) tip.style.display = 'none';
+  }
+
+  function bindMapEvents() {
+    const host = document.getElementById('map-world');
+    if (!host || host._mapBound) return;
+    host._mapBound = true;
+
+    host.querySelectorAll('.map-ctrl-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const act = btn.getAttribute('data-act');
+        if (act === 'zoom-in') mapZoom(1.25);
+        else if (act === 'zoom-out') mapZoom(0.8);
+        else if (act === 'reset') mapReset();
+        else if (act === 'center') mapCenterPlayer();
+      });
+    });
+
+    const search = document.getElementById('map-search');
+    if (search) {
+      search.addEventListener('input', () => {
+        mapState.searchQuery = search.value.trim();
+        highlightSearch();
+      });
+      search.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          const q = search.value.trim().toLowerCase();
+          const c = (PLAYABLE_COUNTRIES || []).find(x =>
+            x.name.includes(search.value.trim()) || x.id.includes(q) || (x.name && x.name.toLowerCase().includes(q)));
+          if (c) {
+            mapState.selected = c.id;
+            mapCenterOn(c.id);
+            if (typeof onMapCountryClick === 'function') onMapCountryClick(c.id);
+            const state = typeof getState === 'function' ? getState() : null;
+            if (state) renderMap(state);
+          }
+        }
+      });
+    }
+
+    // Pan / zoom wheel
+    const vp = document.getElementById('map-viewport');
+    if (vp) {
+      let dragging = false, lastX = 0, lastY = 0;
+      vp.addEventListener('wheel', e => {
+        e.preventDefault();
+        mapZoom(e.deltaY < 0 ? 1.12 : 0.9);
+      }, { passive: false });
+      vp.addEventListener('pointerdown', e => {
+        if (e.target.closest('.map-country')) return;
+        dragging = true; lastX = e.clientX; lastY = e.clientY;
+        vp.setPointerCapture(e.pointerId);
+        vp.classList.add('panning');
+      });
+      vp.addEventListener('pointermove', e => {
+        if (!dragging) {
+          if (mapState.hovered) positionTooltip(e);
+          return;
+        }
+        mapState.panX += (e.clientX - lastX);
+        mapState.panY += (e.clientY - lastY);
+        lastX = e.clientX; lastY = e.clientY;
+        applyTransform();
+      });
+      vp.addEventListener('pointerup', () => { dragging = false; vp.classList.remove('panning'); });
+      vp.addEventListener('pointercancel', () => { dragging = false; vp.classList.remove('panning'); });
+    }
+  }
+
+  function highlightSearch() {
+    const q = mapState.searchQuery.toLowerCase();
+    document.querySelectorAll('.map-country').forEach(el => {
+      const id = el.getAttribute('data-id');
+      const c = (PLAYABLE_COUNTRIES || []).find(x => x.id === id);
+      const match = !q || (c && (c.name.includes(mapState.searchQuery) || id.includes(q)));
+      el.style.opacity = match ? '' : '0.25';
+    });
+  }
+
+  function mapZoom(factor) {
+    mapState.zoom = Math.max(0.6, Math.min(5, mapState.zoom * factor));
+    applyTransform();
+  }
+
+  function mapReset() {
+    mapState.zoom = 1;
+    mapState.panX = 0;
+    mapState.panY = 0;
+    applyTransform();
+  }
+
+  function mapCenterOn(countryId) {
+    const pts = COUNTRY_POLYS[countryId];
+    if (!pts) return;
+    const ctr = centroid(pts);
+    mapState.zoom = Math.max(mapState.zoom, 1.8);
+    mapState.panX = (VB_W / 2 - ctr.x) * mapState.zoom;
+    mapState.panY = (VB_H / 2 - ctr.y) * mapState.zoom;
+    // Correct: transform is pan after scale around center — approximate center
+    mapState.panX = (VB_W / 2) - ctr.x;
+    mapState.panY = (VB_H / 2) - ctr.y;
+    mapState.zoom = 2.2;
+    // Recompute for scale-around-center model
+    const cx = VB_W / 2, cy = VB_H / 2;
+    mapState.panX = (cx - ctr.x) * mapState.zoom;
+    mapState.panY = (cy - ctr.y) * mapState.zoom;
+    applyTransform();
+  }
+
+  function mapCenterPlayer() {
+    const state = typeof getState === 'function' ? getState() : null;
+    if (state?.country?.id) mapCenterOn(state.country.id);
+  }
+
+  // Public API
+  g.MapEngine = {
+    render: renderMap,
+    zoom: mapZoom,
+    reset: mapReset,
+    centerPlayer: mapCenterPlayer,
+    centerOn: mapCenterOn,
+    getSelected: () => mapState.selected,
+    setSelected: (id) => { mapState.selected = id; },
+    getDiploStatus,
+    COUNTRY_POLYS
+  };
+
+  g.renderPoliticalMap = renderMap;
+})(typeof window !== 'undefined' ? window : globalThis);

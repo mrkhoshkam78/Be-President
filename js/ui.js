@@ -122,44 +122,14 @@ function updateHUD(state) {
 }
 
 function updateMap(state) {
-  const world = $('map-world');
-  if (!world) return;
-  const rel = state.diplomacy.relations || {};
-  const player = state.country;
+  // Political SVG map engine
+  if (typeof MapEngine !== 'undefined' && MapEngine.render) {
+    MapEngine.render(state);
+  } else if (typeof renderPoliticalMap === 'function') {
+    renderPoliticalMap(state);
+  }
 
-  const others = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : COUNTRIES)
-    .filter(c => c.id !== player.id);
-  const ppos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[player.id])
-    ? MAP_POSITIONS[player.id] : { top: 42, left: 42 };
-  let html = `
-    <div class="map-node player neon-player" data-country="${player.id}" style="top:${ppos.top}%;left:${ppos.left}%;">
-      <div class="node-glow"></div>
-      <div class="node-flag">${player.flag}</div>
-      <div class="node-name">${player.name}</div>
-      <div class="node-rel rel-excellent">شما</div>
-    </div>`;
-  const atWar = new Set((state.wars || []).map(w => w.opponent));
-  others.forEach(c => {
-    const raw = rel[c.id];
-    const r = typeof getRelationValue === 'function' ? getRelationValue(raw) : (typeof raw === 'number' ? raw : 40);
-    const status = typeof getRelationStatus === 'function' ? getRelationStatus(r) : { class: 'rel-neutral' };
-    const pos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[c.id])
-      ? MAP_POSITIONS[c.id] : { top: 40 + Math.random()*20, left: 30 + Math.random()*40 };
-    const glowClass = r >= 70 ? 'neon-ally' : r <= 30 ? 'neon-hostile' : 'neon-neutral';
-    const warClass = atWar.has(c.id) ? ' at-war' : '';
-    html += `
-      <div class="map-node ${glowClass}${warClass}" data-country="${c.id}" style="top:${pos.top}%;left:${pos.left}%;"
-           title="${c.name} · روابط ${Math.round(r)}" onclick="onMapCountryClick('${c.id}')"
-           onmouseenter="onMapCountryHover('${c.id}', true)" onmouseleave="onMapCountryHover('${c.id}', false)">
-        <div class="node-flag">${c.flag || '🏳️'}</div>
-        <div class="node-name">${c.name}</div>
-        <div class="node-rel ${status.class || ''}">${Math.round(r)}</div>
-      </div>`;
-  });
-  world.innerHTML = html;
-
-
-  // Quick stats
+  // Quick stats side panel
   const qs = $('map-quick-stats');
   if (qs) {
     const e = state.economy;
@@ -185,7 +155,7 @@ function updateMap(state) {
   // Advisor mini
   const am = $('map-advisor-mini');
   if (am && state.advisorSuggestions && state.advisorSuggestions[0]) {
-    am.innerHTML = `<strong>${state.advisorSuggestions[0].title}</strong><br><span class="muted">${state.advisorSuggestions[0].description.slice(0, 80)}...</span>`;
+    am.innerHTML = `<strong>${state.advisorSuggestions[0].title}</strong><br><span class="muted">${(state.advisorSuggestions[0].description || '').slice(0, 80)}...</span>`;
   }
 }
 
@@ -661,9 +631,12 @@ function actionLoad() {
 function onMapCountryClick(countryId) {
   const state = getState();
   if (!state) return;
-  document.querySelectorAll('.map-node').forEach(n => n.classList.remove('map-selected'));
-  const node = document.querySelector(`.map-node[data-country="${countryId}"]`);
-  if (node) node.classList.add('map-selected');
+  if (typeof MapEngine !== 'undefined') {
+    MapEngine.setSelected(countryId);
+  }
+  document.querySelectorAll('.map-country').forEach(n => {
+    n.classList.toggle('map-selected', n.getAttribute('data-id') === countryId);
+  });
 
   const panel = $('map-country-detail');
   if (!panel) return;
@@ -1731,3 +1704,22 @@ window.toggleNotificationCenter = toggleNotificationCenter;
 window.actionReadNtf = actionReadNtf;
 window.actionMarkAllNtfRead = actionMarkAllNtfRead;
 window.toggleCollapse = toggleCollapse;
+
+
+// ── Theme toggle (light / dark) ──
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('theme-light');
+  try { localStorage.setItem('bp_theme', isLight ? 'light' : 'dark'); } catch (e) {}
+  // Re-tint map ocean slightly by re-render
+  const state = typeof getState === 'function' ? getState() : null;
+  if (state && typeof MapEngine !== 'undefined') MapEngine.render(state);
+}
+
+(function initTheme() {
+  try {
+    const t = localStorage.getItem('bp_theme');
+    if (t === 'light') document.body.classList.add('theme-light');
+  } catch (e) {}
+})();
+
+window.toggleTheme = toggleTheme;

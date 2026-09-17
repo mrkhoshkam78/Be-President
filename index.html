@@ -11,7 +11,7 @@
 <!-- ===== START ===== -->
 <div id="start-screen" class="start-screen">
   <h1>Be President</h1>
-  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۵</p>
+  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۶</p>
   <button class="btn-main" onclick="goToCountrySelect()">شروع بازی جدید</button>
   <button id="btn-continue" class="btn-ghost" style="display:none" onclick="actionLoad()">ادامه بازی قبلی</button>
 </div>
@@ -72,6 +72,7 @@
       </div>
       <div id="notification-list" class="ntf-list"></div>
     </div>
+    <button type="button" class="hud-theme-btn" id="theme-toggle" onclick="toggleTheme()" title="تم روشن/تاریک">🌓</button>
     <div class="hud-time time-controls">
       <button class="speed-btn btn" data-speed="0" onclick="setSpeed(0)">⏸</button>
       <button class="speed-btn btn active" data-speed="1" onclick="setSpeed(1)">▶</button>
@@ -119,9 +120,7 @@
       <div id="map" class="panel active">
         <div class="map-layout">
           <div class="map-area">
-            <div class="map-world" id="map-world">
-              <!-- nodes filled by JS -->
-            </div>
+            <div class="map-world" id="map-world"></div>
           </div>
           <div class="map-side">
             <div class="side-card">
@@ -517,6 +516,7 @@
 <script src="js/events.js"></script>
 <script src="js/advisor.js"></script>
 <script src="js/save.js"></script>
+<script src="js/map.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 </body>
