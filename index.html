@@ -11,7 +11,7 @@
 <!-- ===== START ===== -->
 <div id="start-screen" class="start-screen">
   <h1>Be President</h1>
-  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۸</p>
+  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۸.۱</p>
   <button class="btn-main" onclick="goToCountrySelect()">شروع بازی جدید</button>
   <button id="btn-continue" class="btn-ghost" style="display:none" onclick="actionLoad()">ادامه بازی قبلی</button>
 </div>
@@ -417,7 +417,11 @@
         <div class="panel-title">🌐 دیپلماسی</div>
         <div class="section">
           <h3>روابط</h3>
+          <div class="diplo-search-wrap">
+            <input type="search" id="diplo-search" class="diplo-search" placeholder="جستجوی کشور (نام، منطقه، شناسه)…" autocomplete="off" oninput="filterDiplomacySearch(this.value)" />
+          </div>
           <div id="relations-list"></div>
+          <div id="diplo-search-empty" class="empty-state" style="display:none">کشوری با این عبارت یافت نشد</div>
         </div>
         <div class="section">
           <h3>توافق‌های فعال</h3>

@@ -1772,3 +1772,183 @@ body.theme-light .list-card, body.theme-light .section {
   box-shadow: 0 1px 4px rgba(15,23,42,0.08);
 }
 body.theme-light .btn { color: #fff; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   V3.8.1 — Diplomacy Search + Theme/Responsive consistency
+   ═══════════════════════════════════════════════════════════════ */
+
+.diplo-search-wrap {
+  margin-bottom: 0.75rem;
+}
+.diplo-search {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.9rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.diplo-search:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+.diplo-search::placeholder {
+  color: var(--text-muted);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 1.25rem 1rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.list-card.diplo-focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+.meta-chip {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.card-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Light theme unified inputs / nav / muted */
+body.theme-light input,
+body.theme-light select,
+body.theme-light textarea {
+  background: #fff;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+body.theme-light .muted,
+body.theme-light .list-card-meta,
+body.theme-light .stat-box .lbl {
+  color: #475569 !important;
+}
+body.theme-light .nav-item {
+  color: #1e293b;
+}
+body.theme-light .nav-item:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+body.theme-light .nav-item.active {
+  color: #fff;
+}
+body.theme-light .panel-title {
+  color: #0f172a;
+}
+body.theme-light .section h3 {
+  color: #0369a1;
+  border-bottom-color: #e2e8f0;
+}
+body.theme-light .side-card,
+body.theme-light .list-card,
+body.theme-light .stat-box,
+body.theme-light .action-card,
+body.theme-light .advisor-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+body.theme-light .status-badge.active { background: #dcfce7; color: #166534; }
+body.theme-light .status-badge.ally { background: #dcfce7; color: #166534; }
+body.theme-light .status-badge.hostile { background: #fee2e2; color: #991b1b; }
+body.theme-light .status-badge.neutral { background: #f1f5f9; color: #334155; }
+
+/* Responsive refinements */
+.form-row {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.form-row select,
+.form-row input[type="number"],
+.form-row input[type="text"] {
+  max-width: 100%;
+  min-width: 0;
+}
+.country-select {
+  max-width: min(100%, 280px);
+}
+
+@media (max-width: 960px) {
+  .map-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .map-side {
+    order: 2;
+  }
+  .sidebar {
+    width: 100% !important;
+    max-width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow-x: auto;
+  }
+  .nav-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .content {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  .panel {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  .list-card-header {
+    flex-wrap: wrap;
+  }
+  .list-card-actions {
+    width: 100%;
+  }
+  .list-card-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .hud-stat .lbl { display: none; }
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .diplo-search {
+    font-size: 16px; /* prevent iOS zoom */
+  }
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .form-row label {
+    min-width: 0;
+  }
+  .country-select,
+  .form-row select {
+    max-width: 100%;
+    width: 100%;
+  }
+}

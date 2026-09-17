@@ -167,7 +167,13 @@
       }
       if (!skip || status === 'player' || isSel) {
         placed.push(ctr);
-        const short = c.name.length > 11 ? c.name.slice(0, 9) + '…' : c.name;
+        let labelName = c.name;
+        if (state && state.worldOwnership && state.worldOwnership[c.id] === state.country?.id) {
+          labelName = (state.country?.name || 'شما');
+        } else if (typeof getCountryDisplayName === 'function' && state && state.worldOwnership && state.worldOwnership[c.id]) {
+          labelName = state.country?.name || c.name;
+        }
+        const short = labelName.length > 11 ? labelName.slice(0, 9) + '…' : labelName;
         const fs = isSel || status === 'player' ? 8.5 : 7;
         labels += `<text class="map-label" data-id="${c.id}" x="${ctr.x.toFixed(1)}" y="${ctr.y.toFixed(1)}"
           text-anchor="middle" dominant-baseline="middle" font-size="${fs}"

@@ -1,6 +1,31 @@
 // ui.js - Gaming UI updates
 
 let currentPanel = 'map';
+let diploSearchQuery = '';
+
+/** Display name respecting conquest ownership (does not mutate country data). */
+function getCountryDisplayName(state, countryId) {
+  const base = (typeof getCountryById === 'function' ? getCountryById(countryId) : null)
+    || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(c => c.id === countryId) : null);
+  const original = base ? base.name : countryId;
+  if (!state || !state.worldOwnership) return original;
+  const ownerId = state.worldOwnership[countryId];
+  if (!ownerId) return original;
+  if (state.country && ownerId === state.country.id) {
+    return (state.country.name || 'شما') + ' — قلمرو سابق ' + original;
+  }
+  const owner = (typeof getCountryById === 'function' ? getCountryById(ownerId) : null)
+    || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(c => c.id === ownerId) : null);
+  return (owner ? owner.name : ownerId) + ' — قلمرو سابق ' + original;
+}
+
+function getCountrySearchText(countryId) {
+  const c = (typeof getCountryById === 'function' ? getCountryById(countryId) : null)
+    || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(x => x.id === countryId) : null);
+  if (!c) return String(countryId || '').toLowerCase();
+  return [c.id, c.name, c.region, c.description].filter(Boolean).join(' ').toLowerCase();
+}
+
 
 function $(id) { return document.getElementById(id); }
 
@@ -313,46 +338,70 @@ function updateIntelPanel(state) {
 
 function updateDiplomacyPanel(state) {
   const list = $('relations-list');
+  const emptyEl = $('diplo-search-empty');
   if (list) {
     const isMulti = state.diplomacy.relationsMode === 'multi';
-    list.innerHTML = Object.entries(state.diplomacy.relations).map(([id, val]) => {
-      const overall = typeof getRelationValue === 'function' ? getRelationValue(val) : (typeof val === 'number' ? val : (val.overall || 50));
-      const status = getRelationStatus(overall);
-      const country = getCountryById(id) || COUNTRIES.find(c => c.id === id);
-      let extra = '';
-      if (isMulti && typeof val === 'object') {
-        extra = `<div class="list-card-meta" style="font-size:0.72rem">
-          سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0}
-        </div>`;
+    const q = (diploSearchQuery || '').trim().toLowerCase();
+    let entries = Object.entries(state.diplomacy.relations || {});
+    // Hide annexed territories from active diplomacy list
+    if (state.worldOwnership) {
+      entries = entries.filter(([id]) => state.worldOwnership[id] !== state.country?.id);
+    }
+    if (q) {
+      entries = entries.filter(([id]) => getCountrySearchText(id).includes(q));
+    }
+    if (!entries.length) {
+      list.innerHTML = '';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = q ? 'کشوری با این عبارت یافت نشد' : 'رابطه‌ای ثبت نشده است';
       }
-      const barClass = overall >= 70 ? 'excellent' : overall >= 55 ? 'good' : overall >= 40 ? 'neutral' : overall >= 25 ? 'poor' : 'hostile';
-      const badgeClass = overall >= 70 ? 'ally' : overall <= 30 ? 'hostile' : 'neutral';
-      return `<div class="list-card cat-diplomacy">
-        <div class="list-card-header">
-          <span class="ico">${country?.flag || '🌐'}</span>
-          <span>${country?.name || id}</span>
-          <span class="status-badge ${badgeClass}" style="margin-right:auto">${status.text}</span>
-        </div>
-        <div class="list-card-meta">
-          <span>رابطه: <strong>${overall.toFixed(0)}</strong></span>
-        </div>
-        <div class="rel-bar-wrap"><div class="rel-bar ${barClass}" style="width:${Math.min(100, overall)}%"></div></div>
-        ${extra}
-        <div class="list-card-actions">
-          <button class="btn" onclick="actionImproveRelation('${id}')">بهبود رابطه</button>
-        </div>
-      </div>`;
-    }).join('');
+    } else {
+      if (emptyEl) emptyEl.style.display = 'none';
+      list.innerHTML = entries.map(([id, val]) => {
+        const overall = typeof getRelationValue === 'function' ? getRelationValue(val) : (typeof val === 'number' ? val : (val.overall || 50));
+        const status = typeof getRelationStatus === 'function' ? getRelationStatus(overall) : { text: '', class: '' };
+        const country = (typeof getCountryById === 'function' ? getCountryById(id) : null)
+          || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(c => c.id === id) : null);
+        const displayName = getCountryDisplayName(state, id);
+        let extra = '';
+        if (isMulti && typeof val === 'object') {
+          extra = `<div class="list-card-meta">
+            سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0}
+          </div>`;
+        }
+        const barClass = overall >= 70 ? 'excellent' : overall >= 55 ? 'good' : overall >= 40 ? 'neutral' : overall >= 25 ? 'poor' : 'hostile';
+        const badgeClass = overall >= 70 ? 'ally' : overall <= 30 ? 'hostile' : 'neutral';
+        const region = country?.region ? `<span class="meta-chip">${country.region}</span>` : '';
+        return `<div class="list-card cat-diplomacy" data-country-id="${id}" id="diplo-card-${id}">
+          <div class="list-card-header">
+            <span class="ico">${country?.flag || '🌐'}</span>
+            <span class="card-title">${displayName}</span>
+            <span class="status-badge ${badgeClass}">${status.text || Math.round(overall)}</span>
+          </div>
+          <div class="list-card-meta">
+            <span>رابطه: <strong>${overall.toFixed(0)}</strong></span>
+            ${region}
+          </div>
+          <div class="rel-bar-wrap"><div class="rel-bar ${barClass}" style="width:${Math.min(100, overall)}%"></div></div>
+          ${extra}
+          <div class="list-card-actions">
+            <button type="button" class="btn" onclick="actionImproveRelation('${id}')">بهبود رابطه</button>
+            <button type="button" class="btn btn-outline" onclick="focusDiplomacyCountry('${id}')">جزئیات</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
   }
   const agr = $('agreements-list');
   if (agr) {
-    if (!state.diplomacy.agreements.length) agr.innerHTML = '<span class="muted">توافقی فعال نیست</span>';
+    if (!state.diplomacy.agreements || !state.diplomacy.agreements.length) agr.innerHTML = '<span class="muted">توافقی فعال نیست</span>';
     else agr.innerHTML = state.diplomacy.agreements.map(a =>
       `<div class="list-card cat-diplomacy">
         <div class="list-card-header">
           <span class="ico">🌐</span>
-          <span>${getAgreementName(a.type)} با ${a.targetName || a.target}</span>
-          <span class="status-badge active">فعال ✅</span>
+          <span class="card-title">${(typeof getAgreementName === 'function' ? getAgreementName(a.type) : a.type)} با ${a.targetName || a.target}</span>
+          <span class="status-badge active">فعال</span>
         </div>
         <div class="list-card-meta">
           ${a.value ? `<span>ارزش: <strong>${a.value}</strong></span>` : ''}
@@ -363,6 +412,25 @@ function updateDiplomacyPanel(state) {
   }
 }
 
+function filterDiplomacySearch(q) {
+  diploSearchQuery = q || '';
+  const state = typeof getState === 'function' ? getState() : null;
+  if (state) updateDiplomacyPanel(state);
+}
+
+function focusDiplomacyCountry(countryId) {
+  const state = typeof getState === 'function' ? getState() : null;
+  if (!state) return;
+  // Ensure diplomacy panel visible and card highlighted
+  if (typeof showPanel === 'function') showPanel('diplomacy');
+  const card = document.getElementById('diplo-card-' + countryId);
+  if (card) {
+    document.querySelectorAll('.list-card.diplo-focus').forEach(el => el.classList.remove('diplo-focus'));
+    card.classList.add('diplo-focus');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  if (typeof onMapCountryClick === 'function') onMapCountryClick(countryId);
+}
 
 function updateSanctionsPanel(state) {
   const list = $('sanctions-list');
@@ -706,6 +774,9 @@ window.actionIntelBudget = actionIntelBudget;
 window.actionGatherIntel = actionGatherIntel;
 window.actionStartCovert = actionStartCovert;
 window.actionImproveRelation = actionImproveRelation;
+window.filterDiplomacySearch = filterDiplomacySearch;
+window.focusDiplomacyCountry = focusDiplomacyCountry;
+window.getCountryDisplayName = getCountryDisplayName;
 window.actionProposeAgreement = actionProposeAgreement;
 window.actionLiftSanction = actionLiftSanction;
 window.actionSave = actionSave;
