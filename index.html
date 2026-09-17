@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Be President — مدیریت کشور</title>
+  <title>Be President — Strategy Simulator</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,7 +11,7 @@
 <!-- ===== START ===== -->
 <div id="start-screen" class="start-screen">
   <h1>Be President</h1>
-  <p class="subtitle">شبیه‌ساز استراتژیک مدیریت کشور — نسخه ۳.۳.۰</p>
+  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۴</p>
   <button class="btn-main" onclick="goToCountrySelect()">شروع بازی جدید</button>
   <button id="btn-continue" class="btn-ghost" style="display:none" onclick="actionLoad()">ادامه بازی قبلی</button>
 </div>
@@ -54,11 +54,11 @@
 <div id="game-container">
   <header class="hud">
     <div class="hud-brand"><span id="hud-flag">🏳️</span> <span id="hud-country">—</span></div>
-    <div class="hud-stat"><span class="lbl">📅</span> <span id="hud-date">2026/01</span></div>
-    <div class="hud-stat"><span class="lbl">💰</span> <span id="hud-budget">0</span></div>
-    <div class="hud-stat"><span class="lbl">📈</span> <span id="hud-growth">0%</span></div>
-    <div class="hud-stat"><span class="lbl">😊</span> <span id="hud-sat">0</span></div>
-    <div class="hud-stat"><span class="lbl">🛡️</span> <span id="hud-def">0</span></div>
+    <div class="hud-stat" title="تاریخ بازی"><span class="lbl">📅</span> <span id="hud-date">2026/01</span></div>
+    <div class="hud-stat" title="بودجه"><span class="lbl">💰</span> <span id="hud-budget" class="positive">0</span></div>
+    <div class="hud-stat" title="رشد GDP"><span class="lbl">📈</span> <span id="hud-growth">0%</span></div>
+    <div class="hud-stat" title="رضایت مردم"><span class="lbl">😊</span> <span id="hud-sat">0</span></div>
+    <div class="hud-stat" title="قدرت دفاعی"><span class="lbl">🛡️</span> <span id="hud-def">0</span></div>
     <div class="hud-stat hud-bell-wrap" onclick="toggleNotificationCenter()" title="اعلان‌ها">
       <span class="lbl">🔔</span>
       <span id="hud-bell-count" class="nav-badge" style="display:none">0</span>
@@ -72,10 +72,10 @@
       </div>
       <div id="notification-list" class="ntf-list"></div>
     </div>
-    <div class="hud-time">
-      <button class="speed-btn" data-speed="0" onclick="setSpeed(0)">⏸</button>
-      <button class="speed-btn active" data-speed="1" onclick="setSpeed(1)">▶</button>
-      <button class="speed-btn" data-speed="3" onclick="setSpeed(3)">⏩</button>
+    <div class="hud-time time-controls">
+      <button class="speed-btn btn" data-speed="0" onclick="setSpeed(0)">⏸</button>
+      <button class="speed-btn btn active" data-speed="1" onclick="setSpeed(1)">▶</button>
+      <button class="speed-btn btn" data-speed="3" onclick="setSpeed(3)">⏩</button>
     </div>
   </header>
 

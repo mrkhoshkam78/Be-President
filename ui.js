@@ -126,21 +126,22 @@ function updateMap(state) {
       <div class="node-name">${player.name}</div>
       <div class="node-rel rel-excellent">شما</div>
     </div>`;
+  const atWar = new Set((state.wars || []).map(w => w.opponent));
   others.forEach(c => {
     const raw = rel[c.id];
     const r = typeof getRelationValue === 'function' ? getRelationValue(raw) : (typeof raw === 'number' ? raw : 40);
-    const status = getRelationStatus(r);
+    const status = typeof getRelationStatus === 'function' ? getRelationStatus(r) : { class: 'rel-neutral' };
     const pos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[c.id])
-      ? MAP_POSITIONS[c.id] : { top: 40, left: 50 };
+      ? MAP_POSITIONS[c.id] : { top: 40 + Math.random()*20, left: 30 + Math.random()*40 };
     const glowClass = r >= 70 ? 'neon-ally' : r <= 30 ? 'neon-hostile' : 'neon-neutral';
+    const warClass = atWar.has(c.id) ? ' at-war' : '';
     html += `
-      <div class="map-node ${glowClass}" data-country="${c.id}" style="top:${pos.top}%;left:${pos.left}%;"
-           title="${c.name}" onclick="onMapCountryClick('${c.id}')"
+      <div class="map-node ${glowClass}${warClass}" data-country="${c.id}" style="top:${pos.top}%;left:${pos.left}%;"
+           title="${c.name} · روابط ${Math.round(r)}" onclick="onMapCountryClick('${c.id}')"
            onmouseenter="onMapCountryHover('${c.id}', true)" onmouseleave="onMapCountryHover('${c.id}', false)">
-        <div class="node-glow"></div>
-        <div class="node-flag">${c.flag}</div>
+        <div class="node-flag">${c.flag || '🏳️'}</div>
         <div class="node-name">${c.name}</div>
-        <div class="node-rel ${status.class}">${Math.round(r)}</div>
+        <div class="node-rel ${status.class || ''}">${Math.round(r)}</div>
       </div>`;
   });
   world.innerHTML = html;

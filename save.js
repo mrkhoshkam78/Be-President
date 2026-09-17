@@ -87,7 +87,7 @@ function loadGame() {
       if (!state.dataRef) state.dataRef = { year: 2024, source: 'IMF/WB scaled V3' };
       state.meta.version = '3.0.1';
     }
-    // V3.3.0 migration
+    // V3.4.0 migration
     if (!state.meta.version || state.meta.version < '3.3.0') {
       if (!state.military) state.military = {};
       if (!state.military.equipment) {
@@ -99,13 +99,16 @@ function loadGame() {
       if (typeof computeStrengthsWeaknesses === 'function') computeStrengthsWeaknesses(state);
       state.meta.version = '3.3.0';
     }
+    if (!state.meta.version || state.meta.version < '3.4.0') {
+      state.meta.version = '3.4.0';
+    }
 
     setState(state);
     hideStartScreens();
     showPanel('map');
     refreshUI();
     startGameLoop();
-    return { success: true, state, message: 'بازی بارگذاری شد (V3.3.0)' };
+    return { success: true, state, message: 'بازی بارگذاری شد (V3.4.0)' };
   } catch (err) {
     return { success: false, message: 'خطا در بارگذاری' };
   }
