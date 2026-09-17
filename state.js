@@ -47,7 +47,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '2.2',
+      version: '3.0.1',
       isRunning: false,
       speed: 1,
       tickCount: 0,
@@ -181,7 +181,50 @@ function createInitialState(difficultyId, countryId) {
 
     // News system
     news: [],
-    newsUnread: 0
+    newsUnread: 0,
+
+    // === V3 Systems ===
+    // Standardized Upgrade Levels (Current / Min / Max = 100)
+    upgrades: {
+      economicDevelopment: { level: Math.round((country.economyPower || 50) / 2), min: 1, max: 100 },
+      militaryPower: { level: Math.round((country.militaryPower || 50) / 2), min: 1, max: 100 },
+      technology: { level: Math.round((country.techLevel || 50) ), min: 1, max: 100 },
+      intelligence: { level: Math.round((country.intelLevel || 40) ), min: 1, max: 100 },
+      infrastructure: { level: Math.round(country.infrastructure || 50), min: 1, max: 100 },
+      defense: { level: Math.round((country.military?.defenseSystems || 40)), min: 1, max: 100 },
+      government: { level: 30, min: 1, max: 100 }
+    },
+
+    // Election system (every 3 years)
+    election: {
+      nextElectionYear: 2029,
+      nextElectionMonth: 1,
+      termStartYear: 2026,
+      approval: Math.round(country.satisfaction || 55),
+      performance: { economic: 50, military: 50, diplomatic: 50, domestic: 50 },
+      history: [],
+      phase: null // null | 'campaign' | 'voting'
+    },
+
+    // Wars system
+    wars: [],
+    warHistory: [],
+
+    // Permanent Alliances
+    alliances: {
+      military: [],
+      economic: []
+    },
+
+    // Global Crises
+    crises: [],
+    crisisHistory: [],
+
+    // Data reference
+    dataRef: {
+      year: 2024,
+      source: 'IMF / World Bank / SIPRI scaled for gameplay (V3.0.1)'
+    }
   };
 }
 

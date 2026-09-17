@@ -74,7 +74,7 @@ function updateHUD(state) {
   $('hud-flag').textContent = state.country.flag || '🏳️';
   $('hud-country').textContent = state.country.name;
   $('hud-date').textContent = `${state.time.year}/${String(state.time.month).padStart(2,'0')}`;
-  $('hud-budget').textContent = e.budget.toFixed(0);
+  $('hud-budget').textContent = formatMoney(e.budget);
   $('hud-budget').className = e.budget >= 0 ? 'positive' : 'negative';
   const g = e.gdpGrowth;
   $('hud-growth').textContent = (g >= 0 ? '+' : '') + g.toFixed(1) + '%';
@@ -436,11 +436,25 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
+/** Central money / number formatter for Budget, GDP, Debt, Costs etc. */
+function formatMoney(n, opts = {}) {
+  if (n == null || isNaN(n)) return '—';
+  const abs = Math.abs(Number(n));
+  const sign = n < 0 ? '-' : '';
+  const withDollar = opts.dollar !== false;
+  const prefix = withDollar ? '$' : '';
+  if (abs >= 1e12) return sign + prefix + (abs / 1e12).toFixed(2) + 'T';
+  if (abs >= 1e9) return sign + prefix + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return sign + prefix + (abs / 1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) {
+    // thousands with commas
+    return sign + prefix + Math.round(abs).toLocaleString('en-US');
+  }
+  return sign + prefix + (Math.round(abs * 10) / 10).toLocaleString('en-US');
+}
+
 function formatNumber(n) {
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
-  return String(n);
+  return formatMoney(n, { dollar: false });
 }
 
 function showToast(msg, type = 'info') {

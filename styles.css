@@ -1243,3 +1243,76 @@ input[type="range"]:focus, input[type="number"]:focus, select:focus {
   .list-card { padding: 0.75rem; }
   .news-item { grid-template-columns: 40px 1fr; }
 }
+
+/* ===== V3.0.1 Scroll & Overflow improvements ===== */
+html { scroll-behavior: smooth; }
+body { overflow-x: hidden; }
+
+/* Modern thin scrollbar */
+.content, .sidebar, .news-feed, .panel, .modal-body, .country-grid {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) var(--bg3);
+}
+.content::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.news-feed::-webkit-scrollbar,
+.panel::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.content::-webkit-scrollbar-track,
+.sidebar::-webkit-scrollbar-track,
+.news-feed::-webkit-scrollbar-track {
+  background: var(--bg3);
+  border-radius: 4px;
+}
+.content::-webkit-scrollbar-thumb,
+.sidebar::-webkit-scrollbar-thumb,
+.news-feed::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 4px;
+}
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dim);
+}
+
+/* Prevent horizontal overflow */
+.game-body, .content, .panel, .hud, .map-world {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Nested scroll only where needed */
+.news-feed { max-height: 65vh; overflow-y: auto; }
+.country-grid { max-height: 60vh; overflow-y: auto; }
+
+/* Modal scroll fix */
+.modal-content { max-height: 85vh; overflow-y: auto; }
+
+/* Upgrade cards */
+.upgrade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.8rem;
+}
+.upgrade-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+.upgrade-card .level-bar {
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.4rem 0;
+}
+.upgrade-card .level-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transition: width 0.3s;
+}
+.upgrade-card.maxed { opacity: 0.75; border-color: var(--success); }

@@ -166,6 +166,7 @@ function addNews(state, newsItem) {
     icon: newsItem.icon || '📰',
     title: newsItem.title,
     summary: newsItem.summary || '',
+    line2: newsItem.line2 || newsItem.detail || '',
     day: state.time.totalDays,
     year: state.time.year,
     month: state.time.month,

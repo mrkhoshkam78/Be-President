@@ -1,7 +1,9 @@
 // save.js - LocalStorage Save / Load / New Game
 
-const SAVE_KEY = 'be_president_v2_save';
-const META_KEY = 'be_president_v2_meta';
+const SAVE_KEY = 'be_president_v3_save';
+const META_KEY = 'be_president_v3_meta';
+const OLD_SAVE_KEY = 'be_president_v2_save';
+const OLD_META_KEY = 'be_president_v2_meta';
 
 function saveGame() {
   const state = getState();
@@ -26,7 +28,9 @@ function saveGame() {
 
 function loadGame() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    let raw = localStorage.getItem(SAVE_KEY);
+    // Fallback to old v2 save
+    if (!raw) raw = localStorage.getItem(OLD_SAVE_KEY);
     if (!raw) return { success: false, message: 'ذخیره‌ای یافت نشد' };
     let state = JSON.parse(raw);
     if (!state.meta || !state.economy || !state.time) {
@@ -51,12 +55,44 @@ function loadGame() {
       }
       state.meta.version = '2.2';
     }
+    // V3.0.1 migration
+    if (!state.meta.version || state.meta.version < '3.0.1') {
+      if (!state.upgrades) {
+        state.upgrades = {
+          economicDevelopment: { level: 30, min: 1, max: 100 },
+          militaryPower: { level: 30, min: 1, max: 100 },
+          technology: { level: state.tech?.level || 40, min: 1, max: 100 },
+          intelligence: { level: state.intelligence?.level || 30, min: 1, max: 100 },
+          infrastructure: { level: state.economy?.infrastructure || 40, min: 1, max: 100 },
+          defense: { level: state.military?.defenseSystems || 30, min: 1, max: 100 },
+          government: { level: 30, min: 1, max: 100 }
+        };
+      }
+      if (!state.election) {
+        state.election = {
+          nextElectionYear: state.time.year + 3,
+          nextElectionMonth: state.time.month,
+          termStartYear: state.time.year,
+          approval: state.population?.satisfaction || 55,
+          performance: { economic: 50, military: 50, diplomatic: 50, domestic: 50 },
+          history: [],
+          phase: null
+        };
+      }
+      if (!state.wars) state.wars = [];
+      if (!state.warHistory) state.warHistory = [];
+      if (!state.alliances) state.alliances = { military: [], economic: [] };
+      if (!state.crises) state.crises = [];
+      if (!state.crisisHistory) state.crisisHistory = [];
+      if (!state.dataRef) state.dataRef = { year: 2024, source: 'IMF/WB scaled V3' };
+      state.meta.version = '3.0.1';
+    }
     setState(state);
     hideStartScreens();
     showPanel('map');
     refreshUI();
     startGameLoop();
-    return { success: true, state, message: 'بازی بارگذاری شد' };
+    return { success: true, state, message: 'بازی بارگذاری شد (V3.0.1)' };
   } catch (err) {
     return { success: false, message: 'خطا در بارگذاری' };
   }
