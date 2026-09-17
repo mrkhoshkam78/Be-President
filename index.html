@@ -11,7 +11,7 @@
 <!-- ===== START ===== -->
 <div id="start-screen" class="start-screen">
   <h1>Be President</h1>
-  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۴</p>
+  <p class="subtitle">شبیه‌ساز استراتژیک ریاست‌جمهوری — نسخه ۳.۵</p>
   <button class="btn-main" onclick="goToCountrySelect()">شروع بازی جدید</button>
   <button id="btn-continue" class="btn-ghost" style="display:none" onclick="actionLoad()">ادامه بازی قبلی</button>
 </div>
@@ -347,6 +347,7 @@
             <span class="muted" id="missile-stock">موجودی: —</span>
           </div>
           <div id="leaders-box" class="muted" style="margin-top:0.5rem"></div>
+          <div id="combat-breakdown" class="combat-breakdown" style="display:none"></div>
         </div>
         <div class="section">
           <h3>🛡️ دارایی‌های نظامی</h3>
@@ -498,6 +499,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="data.js"></script>
+<script src="bootstrap.js"></script>
 <script src="state.js"></script>
 <script src="limits.js"></script>
 <script src="strength.js"></script>

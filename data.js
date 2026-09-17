@@ -2217,3 +2217,31 @@ const MAP_POSITIONS = {
   ukraine:      { top: 28, left: 56 },
   finland:      { top: 14, left: 54 }
 };
+
+
+// ─── Explicit global exports (fixes Load when const is not on window) ───
+(function exportGlobals() {
+  const g = (typeof window !== 'undefined') ? window : globalThis;
+  g.PLAYABLE_COUNTRIES = PLAYABLE_COUNTRIES;
+  g.COUNTRIES = COUNTRIES;
+  g.DIFFICULTY = DIFFICULTY;
+  g.BASE_RELATIONS = BASE_RELATIONS;
+  g.MAP_POSITIONS = MAP_POSITIONS;
+  g.LIMITS = LIMITS;
+  g.RESOURCE_TYPES = typeof RESOURCE_TYPES !== 'undefined' ? RESOURCE_TYPES : [];
+  g.getCountryById = typeof getCountryById === 'function' ? getCountryById : function(id) {
+    return (g.PLAYABLE_COUNTRIES || []).find(function(c) { return c.id === id; });
+  };
+  g.getCountryName = typeof getCountryName === 'function' ? getCountryName : function(id) {
+    var c = g.getCountryById(id); return c ? c.name : id;
+  };
+  g.getCountryFlag = typeof getCountryFlag === 'function' ? getCountryFlag : function(id) {
+    var c = g.getCountryById(id); return c ? c.flag : '🏳️';
+  };
+  g.clampValue = typeof clampValue === 'function' ? clampValue : function(k,v){return v;};
+  g.isAtMax = typeof isAtMax === 'function' ? isAtMax : function(){return false;};
+  g.isAtMin = typeof isAtMin === 'function' ? isAtMin : function(){return false;};
+  g.getLimitLabel = typeof getLimitLabel === 'function' ? getLimitLabel : function(k,v){return String(v);};
+  g.DATA_READY = true;
+  g.DATA_VERSION = '3.5.0';
+})();

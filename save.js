@@ -87,7 +87,7 @@ function loadGame() {
       if (!state.dataRef) state.dataRef = { year: 2024, source: 'IMF/WB scaled V3' };
       state.meta.version = '3.0.1';
     }
-    // V3.4.0 migration
+    // V3.5.0 migration
     if (!state.meta.version || state.meta.version < '3.3.0') {
       if (!state.military) state.military = {};
       if (!state.military.equipment) {
@@ -100,15 +100,28 @@ function loadGame() {
       state.meta.version = '3.3.0';
     }
     if (!state.meta.version || state.meta.version < '3.4.0') {
-      state.meta.version = '3.4.0';
+      state.meta.version = '3.5.0';
     }
 
+    // Rehydrate static country metadata from Base Data (never trust save for flag/name/region template)
+    if (typeof PLAYABLE_COUNTRIES !== 'undefined' && state.country && state.country.id) {
+      const base = PLAYABLE_COUNTRIES.find(c => c.id === state.country.id);
+      if (base) {
+        state.country.name = base.name;
+        state.country.flag = base.flag;
+        state.country.color = base.color;
+        state.country.region = base.region;
+        state.country.strengths = base.strengths || state.country.strengths;
+        state.country.weaknesses = base.weaknesses || state.country.weaknesses;
+      }
+    }
+    if (typeof BePresidentBoot !== 'undefined') BePresidentBoot.assertReady();
     setState(state);
     hideStartScreens();
     showPanel('map');
     refreshUI();
     startGameLoop();
-    return { success: true, state, message: 'بازی بارگذاری شد (V3.4.0)' };
+    return { success: true, state, message: 'بازی بارگذاری شد (V3.5.0)' };
   } catch (err) {
     return { success: false, message: 'خطا در بارگذاری' };
   }

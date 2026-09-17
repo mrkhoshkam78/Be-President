@@ -1624,6 +1624,24 @@ function actionMilOp(type, targetName) {
   setState(state);
   refreshUI();
   showToast(res.message || (res.success ? 'عملیات انجام شد' : 'ناموفق'), res.operationSuccess === false ? 'warning' : (res.success ? 'success' : 'error'));
+  // Combat breakdown panel
+  const bd = $('combat-breakdown');
+  const war = (state.wars || []).find(w => w.opponent === target);
+  if (bd && war && war.lastBreakdown) {
+    const b = war.lastBreakdown;
+    bd.style.display = 'block';
+    bd.innerHTML = `<h4>📊 تحلیل عملیات</h4>
+      <div class="bd-grid">
+        <span>حمله</span><strong>${b.finalAttack}</strong>
+        <span>دفاع دشمن</span><strong>${b.finalDefense}</strong>
+        <span>فناوری</span><strong>×${b.techMod}</strong>
+        <span>اطلاعات</span><strong>×${b.intelMod}</strong>
+        <span>تجهیزات</span><strong>×${b.equipMod}</strong>
+        <span>خستگی جنگ</span><strong>×${b.fatigue}</strong>
+        <span>سختی</span><strong>${b.difficulty}</strong>
+        <span>شانس موفقیت</span><strong>${b.chance}%</strong>
+      </div>`;
+  }
 }
 
 function actionProduce(type) {

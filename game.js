@@ -37,6 +37,12 @@ function startPresidency() {
 }
 
 function startNewGame(difficultyId, countryId) {
+  if (typeof BePresidentBoot !== 'undefined') BePresidentBoot.assertReady();
+  if (!countryId || !(PLAYABLE_COUNTRIES || []).find(c => c.id === countryId)) {
+    console.error('Invalid countryId', countryId);
+    showToast('کشور نامعتبر — دوباره انتخاب کنید', 'error');
+    return;
+  }
   newGame(difficultyId, countryId);
   const state = getState();
   state.meta.isRunning = true;
@@ -282,13 +288,30 @@ function chooseEvent(choiceId) {
 }
 
 function initApp() {
-  const meta = getSaveMeta();
-  if (meta) {
-    const loadBtn = $('btn-continue');
-    if (loadBtn) {
-      loadBtn.style.display = 'inline-block';
-      loadBtn.textContent = `ادامه (${meta.countryName || meta.year}/${meta.month} — ${meta.difficulty})`;
+  // 1) Validate base data before any UI that needs countries
+  if (typeof BePresidentBoot !== 'undefined') {
+    const ok = BePresidentBoot.init();
+    if (!ok) return; // fatal error UI already shown
+  } else if (typeof PLAYABLE_COUNTRIES === 'undefined' || !PLAYABLE_COUNTRIES.length) {
+    console.error('[BePresident] PLAYABLE_COUNTRIES missing at init');
+    alert('خطا: داده کشورها بارگذاری نشد. فایل data.js را بررسی کنید.');
+    return;
+  }
+
+  console.info('[BePresident] Init OK — countries:', PLAYABLE_COUNTRIES.length);
+
+  // 2) Continue button only if valid save meta exists
+  try {
+    const meta = typeof getSaveMeta === 'function' ? getSaveMeta() : null;
+    if (meta && meta.countryId) {
+      const loadBtn = $('btn-continue');
+      if (loadBtn) {
+        loadBtn.style.display = 'inline-block';
+        loadBtn.textContent = 'ادامه (' + (meta.countryName || meta.countryId) + ' — ' + (meta.year || '') + '/' + (meta.month || '') + ')';
+      }
     }
+  } catch (e) {
+    console.warn('[BePresident] save meta read failed', e);
   }
 
   document.querySelectorAll('.speed-btn').forEach(btn => {

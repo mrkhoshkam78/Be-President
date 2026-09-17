@@ -47,7 +47,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '3.4.0',
+      version: '3.5.0',
       isRunning: false,
       speed: 1,
       tickCount: 0,
@@ -231,7 +231,7 @@ function createInitialState(difficultyId, countryId) {
     // Data reference
     dataRef: {
       year: 2024,
-      source: 'IMF / World Bank / SIPRI scaled for gameplay (V3.4.0)'
+      source: 'IMF / World Bank / SIPRI scaled for gameplay (V3.5.0)'
     },
     notifications: [],
     notificationsUnread: 0,

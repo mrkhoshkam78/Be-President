@@ -10,6 +10,119 @@ const ATTACK_TYPES = {
   assassination: { name: 'ترور هدفمند', icon: '🎯', costMult: 1.5, equip: null }
 };
 
+
+/** Central war difficulty modifiers — single source, not duplicated */
+function getWarDifficultyMods(state) {
+  const d = (state && state.meta && state.meta.difficulty) || 'medium';
+  if (d === 'easy') {
+    return { playerPower: 1.25, enemyPower: 0.75, cost: 0.7, casualty: 0.55, recovery: 1.4, variance: 8, intelWeight: 0.5 };
+  }
+  if (d === 'realistic') {
+    return { playerPower: 1.0, enemyPower: 1.15, cost: 1.45, casualty: 1.5, recovery: 0.7, variance: 12, intelWeight: 1.2 };
+  }
+  return { playerPower: 1.0, enemyPower: 1.0, cost: 1.0, casualty: 1.0, recovery: 1.0, variance: 10, intelWeight: 1.0 };
+}
+
+/**
+ * Multi-factor combat resolution. Returns breakdown for UI debug.
+ * NOT simply: random > enemyPower
+ */
+function resolveCombat(state, war, attackType, options) {
+  options = options || {};
+  const dm = getWarDifficultyMods(state);
+  const m = state.military || {};
+  const eq = m.equipment || {};
+  const tech = (state.tech && state.tech.level) || 40;
+  const intel = (state.intelligence && state.intelligence.level) || 30;
+  const upMil = (state.upgrades && state.upgrades.militaryPower && state.upgrades.militaryPower.level) || 30;
+  const upDef = (state.upgrades && state.upgrades.defense && state.upgrades.defense.level) || 30;
+  const upTech = (state.upgrades && state.upgrades.technology && state.upgrades.technology.level) || 30;
+  const upIntel = (state.upgrades && state.upgrades.intelligence && state.upgrades.intelligence.level) || 30;
+
+  // Base attack power by type (no double-counting: use force OR equipment, not both fully)
+  let attackPower = 40;
+  let typeMod = 1;
+  const missileCount = Math.max(1, options.missileCount || 1);
+
+  switch (attackType) {
+    case 'ground':
+      attackPower = (m.army || 40) * 0.55 + (eq.tanks || 0) * 1.2 + (eq.apc || 0) * 0.6 + upMil * 0.15;
+      typeMod = 1.0;
+      break;
+    case 'air':
+      attackPower = (m.airForce || 30) * 0.7 + tech * 0.2 + upTech * 0.15 - (war.enemyPower * 0.05);
+      typeMod = 1.1;
+      break;
+    case 'missile':
+      attackPower = (eq.missiles || 0) * 0.8 + missileCount * 4 + tech * 0.25 + upTech * 0.2;
+      typeMod = 0.95 + Math.min(0.3, missileCount * 0.03);
+      break;
+    case 'naval':
+      attackPower = (m.navy || 25) * 0.75 + tech * 0.15 + upMil * 0.1;
+      typeMod = 1.05;
+      break;
+    case 'military_facilities':
+      attackPower = intel * 0.4 + tech * 0.3 + (m.attackPower || 40) * 0.3 + upIntel * 0.2;
+      typeMod = 1.15;
+      break;
+    case 'economic_facilities':
+      attackPower = intel * 0.35 + tech * 0.25 + (m.attackPower || 40) * 0.25;
+      typeMod = 1.0;
+      break;
+    case 'residential':
+      attackPower = (m.attackPower || 40) * 0.5 + (eq.missiles || 0) * 0.3;
+      typeMod = 0.85; // militarily weaker efficiency, high political cost
+      break;
+    case 'assassination':
+      attackPower = intel * 0.7 + upIntel * 0.35 + ((eq.specialForces || 0) * 8);
+      typeMod = 0.7 + (intel / 200);
+      break;
+    default:
+      attackPower = (m.attackPower || 40) * 0.6 + upMil * 0.2;
+  }
+
+  // Defense facing the attack
+  let defensePower = (war.enemyPower || 50) * 0.55;
+  if (attackType === 'air') defensePower += 8; // AA assumed
+  if (attackType === 'missile') defensePower += 5;
+  if (attackType === 'assassination') defensePower = 40 + (war.enemyPower || 50) * 0.25;
+
+  // Modifiers
+  const techMod = 0.85 + (tech / 100) * 0.35 + (upTech / 100) * 0.15;
+  const intelMod = 0.9 + (intel / 100) * 0.2 * dm.intelWeight + (upIntel / 100) * 0.1;
+  const equipMod = 0.9 + Math.min(0.25, ((eq.tanks || 0) + (eq.missiles || 0) + (eq.antiAir || 0)) / 80);
+  const fatigue = Math.max(0.7, 1 - ((war.durationMonths || 0) * 0.02));
+  const allyBonus = ((state.alliances && state.alliances.military) || []).length > 0 ? 1.06 : 1.0;
+
+  const finalAttack = attackPower * typeMod * techMod * intelMod * equipMod * fatigue * allyBonus * dm.playerPower;
+  const finalDefense = defensePower * dm.enemyPower;
+
+  // Controlled variance
+  const variance = (Math.random() * 2 - 1) * dm.variance;
+  const score = finalAttack - finalDefense + variance;
+  const chance = Math.max(8, Math.min(92, 50 + score * 0.9));
+  const success = Math.random() * 100 < chance;
+
+  return {
+    success: success,
+    chance: Math.round(chance),
+    breakdown: {
+      attackPower: Math.round(attackPower),
+      defensePower: Math.round(defensePower),
+      techMod: Math.round(techMod * 100) / 100,
+      intelMod: Math.round(intelMod * 100) / 100,
+      equipMod: Math.round(equipMod * 100) / 100,
+      fatigue: Math.round(fatigue * 100) / 100,
+      allyBonus: allyBonus,
+      difficulty: (state.meta && state.meta.difficulty) || 'medium',
+      finalAttack: Math.round(finalAttack),
+      finalDefense: Math.round(finalDefense),
+      variance: Math.round(variance * 10) / 10,
+      chance: Math.round(chance)
+    }
+  };
+}
+
 function ensureEquipment(state) {
   if (!state.military) state.military = {};
   if (!state.military.equipment) {
@@ -77,18 +190,16 @@ function executeMilitaryAction(state, targetId, attackType, options) {
   var cost = Math.round((4 + Math.random() * 5) * atk.costMult * (attackType === 'missile' ? missileCount * 0.6 : 1) * 10) / 10;
   if ((state.economy.budget || 0) < cost) return { success: false, message: 'بودجه کافی نیست' };
 
-  var tech = state.tech && state.tech.level || 40;
-  var intel = state.intelligence && state.intelligence.level || 30;
-  var attackP = state.military && state.military.attackPower || 40;
-  var chance = 40 + (attackP - war.enemyPower * 0.6) * 0.4 + tech * 0.15 + intel * 0.1;
-  if (attackType === 'assassination') chance = 20 + intel * 0.55;
-  if (attackType === 'missile') chance += Math.min(15, missileCount * 2);
-  chance = Math.max(8, Math.min(92, chance));
-  if (typeof getStrengthModifier === 'function') chance *= getStrengthModifier(state, 'military');
+  var dm = getWarDifficultyMods(state);
+  cost = Math.round(cost * dm.cost * 10) / 10;
+  if ((state.economy.budget || 0) < cost) return { success: false, message: 'بودجه کافی نیست (پس از ضریب سختی)' };
 
-  var success = Math.random() * 100 < chance;
+  var combat = resolveCombat(state, war, attackType, options);
+  var success = combat.success;
+  var chance = combat.chance;
   state.economy.budget -= cost;
   war.costAccumulated = (war.costAccumulated || 0) + cost;
+  war.lastBreakdown = combat.breakdown;
   if (atk.equip === 'missiles') equip.missiles = Math.max(0, (equip.missiles || 0) - missileCount);
 
   var resultMsg = '';
@@ -204,3 +315,5 @@ window.proposeCeasefire = proposeCeasefire;
 window.endWar = endWar;
 window.getCountryLeaders = getCountryLeaders;
 window.ensureEquipment = ensureEquipment;
+window.getWarDifficultyMods = getWarDifficultyMods;
+window.resolveCombat = resolveCombat;
