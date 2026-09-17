@@ -1499,3 +1499,260 @@ body.theme-light .tip-row b { color: #0f172a; }
   .map-legend { max-width: 160px; font-size: 0.65rem; }
   .map-search { width: 140px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   V3.7 — Card System Fix + Design Tokens
+   ═══════════════════════════════════════════════════════════════ */
+
+.game-card,
+.list-card,
+.side-card,
+.stat-box,
+.advisor-card,
+.action-card,
+.section {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+
+.game-card,
+.list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.65rem;
+  position: relative;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.list-card:hover,
+.game-card:hover {
+  border-color: var(--border-bright);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+}
+
+.card-header,
+.list-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  flex-wrap: wrap;
+  min-height: 1.6rem;
+}
+.card-header .ico,
+.list-card-header .ico {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.card-body,
+.list-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.card-footer,
+.list-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  align-items: center;
+}
+
+/* Stat component */
+.stat-box {
+  padding: 0.75rem 0.65rem;
+  text-align: center;
+  min-width: 0;
+}
+.stat-box .lbl {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-box .val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+}
+
+/* Section titles */
+.section {
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.85rem;
+}
+.section h3 {
+  font-size: 0.9rem;
+  color: var(--cyan);
+  margin-bottom: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.45rem;
+}
+
+/* Buttons game-style */
+.btn, .btn-sm, .btn-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 34px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  transition: 0.15s;
+  white-space: nowrap;
+}
+.btn:disabled, .btn-main:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+}
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+}
+.btn-outline:hover {
+  background: rgba(59,130,246,0.12);
+}
+
+/* Status badges consistent */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* Prevent overflow in panels */
+.panel, .content, .section, .list-card, .game-card {
+  max-width: 100%;
+}
+.panel .stat-grid,
+.panel .list-card,
+.panel .action-card {
+  box-sizing: border-box;
+}
+
+/* Action cards */
+.action-card {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  align-items: flex-start;
+}
+.action-card .ac-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+.action-card .ac-title { font-weight: 700; margin-bottom: 0.15rem; }
+.action-card .ac-desc { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
+.action-card .ac-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Advisor cards */
+.advisor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.advisor-card {
+  padding: 0.9rem;
+}
+
+/* Country detail panel on map */
+.country-detail-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.country-detail-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+  font-size: 1rem;
+  color: var(--cyan);
+}
+.tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.84rem;
+  border-bottom: 1px solid var(--border);
+}
+.tip-row:last-child { border-bottom: none; }
+
+/* HUD indicators as mini cards */
+.hud-stat {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.25rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 32px;
+}
+
+@media (max-width: 768px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .advisor-grid { grid-template-columns: 1fr; }
+  .list-card, .game-card, .action-card { padding: 0.7rem; }
+  .btn, .btn-sm { min-height: 40px; }
+}
