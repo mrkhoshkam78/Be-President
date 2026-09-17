@@ -142,7 +142,11 @@
       const d = geomToPath(ft.geometry);
       if (!d) return;
       const ctr = geomCentroid(ft.geometry);
-      const status = getDiploStatus(state, c.id);
+      let status = getDiploStatus(state, c.id);
+      // Annexed territories owned by player
+      if (state.worldOwnership && state.worldOwnership[c.id] === state.country?.id) {
+        status = 'player';
+      }
       const st = DIPLO[status] || DIPLO.neutral;
       const base = COUNTRY_COLORS[c.id] || '#4a5568';
       const isSel = mapState.selected === c.id;

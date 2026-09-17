@@ -1,174 +1,185 @@
-// intelligence.js - Intelligence & Covert Operations
+// intelligence.js — Espionage with reliability, cost, detection (V3.8)
+
+function ensureIntel(state) {
+  if (!state.intelligence) {
+    state.intelligence = { budget: 4, level: 30, domestic: 30, foreign: 30, counter: 30, operations: [], discoveredThreats: [] };
+  }
+  if (!state.intelligence.operations) state.intelligence.operations = [];
+  if (!state.intelligence.reports) state.intelligence.reports = [];
+  return state.intelligence;
+}
 
 function processIntelligenceTick(state) {
-  const intel = state.intelligence;
-
-  // Level slowly improves with budget
-  if (intel.budget > 6) {
-    intel.level = typeof clampValue === 'function' ? clampValue('intelLevel', intel.level + 0.15) : Math.min(95, intel.level + 0.15);
-    intel.foreign = typeof clampValue === 'function' ? clampValue('intelForeign', intel.foreign + 0.12) : Math.min(95, intel.foreign + 0.12);
-    intel.domestic = typeof clampValue === 'function' ? clampValue('intelDomestic', intel.domestic + 0.1) : Math.min(95, intel.domestic + 0.1);
-    intel.counter = typeof clampValue === 'function' ? clampValue('intelCounter', intel.counter + 0.1) : Math.min(95, intel.counter + 0.1);
-  } else if (intel.budget < 3) {
-    intel.level = Math.max(15, intel.level - 0.2);
-  }
-
-  // Process ongoing operations
-  state.intelligence.operations = state.intelligence.operations.filter(op => {
-    op.remaining -= 1;
+  const intel = ensureIntel(state);
+  // Slow recovery of readiness
+  intel.level = Math.min(95, (intel.level || 30) + 0.05);
+  // Process ongoing ops
+  intel.operations = (intel.operations || []).filter(op => {
+    op.remaining = (op.remaining || 1) - 1;
     if (op.remaining <= 0) {
-      resolveCovertOperation(state, op);
+      resolveSpyMission(state, op);
       return false;
     }
     return true;
   });
-
   return state;
 }
 
-function setIntelligenceBudget(state, amount) {
-  amount = typeof clampValue === 'function' ? clampValue('intelBudget', amount) : Math.max(1, Math.min(20, amount));
+function adjustIntelBudget(state, amount) {
+  amount = Math.max(1, Math.min(30, amount));
   state.intelligence.budget = amount;
-  logAction(state, `بودجه سازمان اطلاعات به ${amount} تنظیم شد`);
+  if (typeof logAction === 'function') logAction(state, 'بودجه اطلاعات: ' + amount);
   return state;
+}
+
+/**
+ * Reliability 0–1 based on our intel level vs target counter-intel + relation distance
+ */
+function estimateReliability(state, targetId) {
+  const our = (state.intelligence?.level || 30) + (state.intelligence?.foreign || 30) * 0.5;
+  const target = (PLAYABLE_COUNTRIES || []).find(c => c.id === targetId);
+  const counter = target ? (target.intelLevel || 30) * 1.1 : 40;
+  const rel = state.diplomacy?.relations?.[targetId];
+  const relVal = typeof getRelationValue === 'function' ? getRelationValue(rel) : (typeof rel === 'number' ? rel : 40);
+  // closer relations → slightly better human intel
+  let r = (our - counter * 0.6) / 80 + (relVal - 40) / 200;
+  r = Math.max(0.15, Math.min(0.92, r));
+  return Math.round(r * 100) / 100;
+}
+
+function gatherIntelligence(state, targetId) {
+  ensureIntel(state);
+  if (!targetId) return { success: false, message: 'هدف انتخاب نشده' };
+  const cost = Math.max(2, Math.round((state.intelligence.budget || 4) * 0.6));
+  if ((state.economy?.budget || 0) < cost) return { success: false, message: 'بودجه کافی نیست' };
+
+  state.economy.budget -= cost;
+  const reliability = estimateReliability(state, targetId);
+  const target = (PLAYABLE_COUNTRIES || []).find(c => c.id === targetId);
+  if (!target) return { success: false, message: 'کشور هدف نامعتبر' };
+
+  // Detection chance
+  const detectChance = Math.max(0.05, 0.35 - reliability * 0.25 + (target.intelLevel || 30) / 250);
+  const detected = Math.random() < detectChance;
+
+  // Build report with noise based on reliability
+  function noise(trueVal, scale) {
+    const err = (1 - reliability) * scale * (Math.random() * 2 - 1);
+    return Math.round(Math.max(0, trueVal + err));
+  }
+
+  const report = {
+    id: 'spy_' + Date.now(),
+    targetId,
+    targetName: target.name,
+    targetFlag: target.flag,
+    year: state.time.year,
+    month: state.time.month,
+    reliability,
+    confidence: reliability >= 0.7 ? 'بالا' : reliability >= 0.45 ? 'متوسط' : 'پایین',
+    detected,
+    stale: false,
+    estimates: {
+      militaryPower: noise(target.militaryPower || 40, 25),
+      economyPower: noise(target.economyPower || 40, 20),
+      techLevel: noise(target.techLevel || 40, 18),
+      intelLevel: noise(target.intelLevel || 40, 22),
+      stability: noise(target.stability || 50, 20),
+      army: noise(target.military?.army || 40, 20)
+    },
+    note: reliability < 0.4
+      ? 'اطلاعات محدود و احتمالاً قدیمی یا نادرست است.'
+      : reliability < 0.7
+        ? 'برآورد قابل استفاده با حاشیه خطا.'
+        : 'منبع نسبتاً قابل اعتماد.'
+  };
+
+  state.intelligence.reports = state.intelligence.reports || [];
+  state.intelligence.reports.unshift(report);
+  if (state.intelligence.reports.length > 40) state.intelligence.reports = state.intelligence.reports.slice(0, 40);
+
+  if (detected) {
+    // Relation penalty
+    if (state.diplomacy?.relations?.[targetId] != null) {
+      const rel = state.diplomacy.relations[targetId];
+      if (typeof rel === 'number') state.diplomacy.relations[targetId] = Math.max(5, rel - 8);
+      else if (rel) rel.trust = Math.max(0, (rel.trust || 50) - 10);
+    }
+    if (typeof pushNotification === 'function') {
+      pushNotification(state, {
+        severity: 'warning', category: 'intelligence',
+        title: 'عملیات جاسوسی لو رفت',
+        body: 'فعالیت اطلاعاتی در ' + target.name + ' شناسایی شد. روابط آسیب دید.'
+      });
+    }
+  } else if (typeof pushNotification === 'function') {
+    pushNotification(state, {
+      severity: 'info', category: 'intelligence',
+      title: 'گزارش اطلاعاتی: ' + target.name,
+      body: 'اطمینان ' + report.confidence + ' (' + Math.round(reliability * 100) + '٪) — قدرت نظامی برآوردی: ' + report.estimates.militaryPower
+    });
+  }
+
+  if (typeof logAction === 'function') logAction(state, 'جاسوسی از ' + target.name + ' — اطمینان ' + report.confidence);
+  return { success: true, state, report };
 }
 
 function startCovertOperation(state, type, targetId) {
-  const m = getDifficultyMultipliers();
-  const intel = state.intelligence;
-  const target = COUNTRIES.find(c => c.id === targetId);
-
-  if (!target || target.isPlayer) {
-    return { success: false, message: 'هدف نامعتبر است' };
-  }
-
-  const costs = {
-    spy: 6,
-    sabotage: 12,
-    infiltrate: 9,
-    targeted: 15
-  };
-  const cost = costs[type] || 8;
-  const duration = type === 'spy' ? 2 : type === 'sabotage' ? 4 : 3;
-
-  if (state.economy.budget < cost) {
-    return { success: false, message: 'بودجه عملیات مخفی کافی نیست' };
-  }
-  if (intel.operations.length >= 3) {
-    return { success: false, message: 'حداکثر ۳ عملیات همزمان مجاز است' };
-  }
-
+  ensureIntel(state);
+  if (!targetId) return { success: false, message: 'هدف لازم است' };
+  const cost = type === 'sabotage' ? 12 : type === 'disinfo' ? 8 : 10;
+  if ((state.economy?.budget || 0) < cost) return { success: false, message: 'بودجه ناکافی' };
   state.economy.budget -= cost;
-
-  // Success base chance + intelligence skill
-  let baseChance = 0.4 + (intel.foreign / 100) * 0.35 + (intel.level / 100) * 0.2;
-  baseChance += m.covertSuccessBonus;
-  baseChance -= (target.stability || 50) / 300;
-  if (typeof getSkillBonus === 'function') baseChance += getSkillBonus('intelligence') * 10;
-  baseChance = Math.max(0.12, Math.min(0.82, baseChance));
-
-  const op = {
+  const reliability = estimateReliability(state, targetId);
+  const duration = 2 + Math.floor(Math.random() * 2);
+  state.intelligence.operations.push({
     id: 'op_' + Date.now(),
-    type,
+    type: type || 'infiltrate',
     targetId,
-    targetName: target.name,
     remaining: duration,
-    total: duration,
-    successChance: baseChance,
+    reliability,
     cost
-  };
-
-  intel.operations.push(op);
-  logAction(state, `عملیات مخفی (${type}) علیه ${target.name} آغاز شد`);
-  return { success: true, state, operation: op };
-}
-
-function resolveCovertOperation(state, op) {
-  const success = Math.random() < op.successChance;
-  const m = getDifficultyMultipliers();
-  const targetId = op.targetId;
-
-  if (success) {
-    switch (op.type) {
-      case 'spy':
-        // Gain intel, slight relation drop if discovered later but for now pure gain
-        state.intelligence.level = Math.min(92, state.intelligence.level + 3);
-        state.intelligence.foreign = Math.min(92, state.intelligence.foreign + 4);
-        state.alerts.push({ type: 'success', text: `جاسوسی از ${op.targetName} موفقیت‌آمیز بود. اطلاعات ارزشمند کسب شد.` });
-        break;
-      case 'sabotage':
-        // Hurt target economy/military mildly (simulated)
-        state.alerts.push({ type: 'success', text: `خرابکاری در ${op.targetName} انجام شد. زیرساخت‌های دشمن آسیب دید.` });
-        state.diplomacy.relations[targetId] = Math.max(5, (state.diplomacy.relations[targetId] || 40) - 8);
-        break;
-      case 'infiltrate':
-        state.intelligence.foreign = Math.min(92, state.intelligence.foreign + 5);
-        state.intelligence.level = Math.min(92, state.intelligence.level + 2);
-        state.alerts.push({ type: 'success', text: `نفوذ اطلاعاتی در ${op.targetName} برقرار شد.` });
-        break;
-      case 'targeted':
-        state.diplomacy.relations[targetId] = Math.max(5, (state.diplomacy.relations[targetId] || 40) - 18);
-        state.alerts.push({ type: 'warning', text: `عملیات هدفمند علیه ${op.targetName} اجرا شد. تنش دیپلماتیک افزایش یافت.` });
-        break;
-    }
-    logAction(state, `عملیات ${op.type} علیه ${op.targetName} موفق بود`);
-  } else {
-    // Failure + exposure risk
-    const exposureChance = 0.35 + (1 - op.successChance) * 0.3;
-    const exposed = Math.random() < exposureChance * (m.advisorRisk || 1);
-
-    state.diplomacy.relations[targetId] = Math.max(5, (state.diplomacy.relations[targetId] || 40) - 12);
-
-    if (exposed) {
-      // Severe consequences
-      state.population.satisfaction = Math.max(5, state.population.satisfaction - 4);
-      state.alerts.push({
-        type: 'danger',
-        text: `عملیات مخفی علیه ${op.targetName} افشا شد! بحران دیپلماتیک و احتمال تحریم.`
-      });
-
-      // Chance of new sanction
-      if (Math.random() < 0.45 * m.sanctionImpact) {
-        const existing = state.diplomacy.sanctions.find(s => s.from === targetId);
-        if (!existing) {
-          state.diplomacy.sanctions.push({
-            from: targetId,
-            fromName: op.targetName,
-            severity: 1 + Math.floor(Math.random() * 2),
-            startDay: state.time.totalDays,
-            reason: 'عملیات مخفی افشا شده'
-          });
-          state.alerts.push({ type: 'danger', text: `${op.targetName} تحریم‌هایی علیه کشور اعمال کرد.` });
-        }
-      }
-      logAction(state, `عملیات ${op.type} علیه ${op.targetName} شکست خورد و افشا شد`);
-    } else {
-      state.alerts.push({ type: 'warning', text: `عملیات مخفی علیه ${op.targetName} ناموفق بود (بدون افشا).` });
-      logAction(state, `عملیات ${op.type} علیه ${op.targetName} ناموفق بود`);
-    }
-  }
-}
-
-function gatherIntel(state) {
-  const cost = 3;
-  if (state.economy.budget < cost) return { success: false, message: 'بودجه ناکافی' };
-  state.economy.budget -= cost;
-  state.intelligence.level = Math.min(90, state.intelligence.level + 1.5);
-  state.intelligence.domestic = Math.min(90, state.intelligence.domestic + 1);
-  state.intelligence.foreign = Math.min(90, state.intelligence.foreign + 1.2);
-
-  // Discover random threat chance
-  if (Math.random() < 0.25) {
-    state.intelligence.discoveredThreats.push({
-      id: 'threat_' + Date.now(),
-      text: 'فعالیت مشکوک در مرز شرقی شناسایی شد',
-      severity: 1 + Math.floor(Math.random() * 2)
-    });
-    if (state.intelligence.discoveredThreats.length > 5) {
-      state.intelligence.discoveredThreats.shift();
-    }
-  }
-
-  logAction(state, 'جمع‌آوری اطلاعات انجام شد');
+  });
+  if (typeof logAction === 'function') logAction(state, 'عملیات مخفی ' + type + ' آغاز شد');
   return { success: true, state };
 }
+
+function resolveSpyMission(state, op) {
+  const target = (PLAYABLE_COUNTRIES || []).find(c => c.id === op.targetId);
+  const name = target ? target.name : op.targetId;
+  const successP = 0.35 + (op.reliability || 0.4) * 0.5;
+  const success = Math.random() < successP;
+  const detected = Math.random() < (0.4 - (op.reliability || 0.4) * 0.25);
+
+  if (success) {
+    if (op.type === 'sabotage' && target) {
+      // weaken relation war chance if at war
+      const war = (state.wars || []).find(w => w.opponent === op.targetId);
+      if (war) war.enemyPower = Math.max(10, (war.enemyPower || 50) - 4);
+    }
+    if (typeof pushNotification === 'function') {
+      pushNotification(state, {
+        severity: 'success', category: 'intelligence',
+        title: 'عملیات مخفی موفق',
+        body: 'عملیات ' + op.type + ' در ' + name + ' با موفقیت انجام شد.'
+      });
+    }
+  } else if (typeof pushNotification === 'function') {
+    pushNotification(state, {
+      severity: 'warning', category: 'intelligence',
+      title: 'شکست عملیات مخفی',
+      body: 'عملیات در ' + name + ' ناموفق بود.' + (detected ? ' هویت عوامل لو رفت.' : '')
+    });
+  }
+  if (detected && state.diplomacy?.relations?.[op.targetId] != null) {
+    const rel = state.diplomacy.relations[op.targetId];
+    if (typeof rel === 'number') state.diplomacy.relations[op.targetId] = Math.max(5, rel - 12);
+  }
+}
+
+window.processIntelligenceTick = processIntelligenceTick;
+window.adjustIntelBudget = adjustIntelBudget;
+window.gatherIntelligence = gatherIntelligence;
+window.startCovertOperation = startCovertOperation;
+window.estimateReliability = estimateReliability;
+window.ensureIntel = ensureIntel;

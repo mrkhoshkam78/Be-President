@@ -121,7 +121,17 @@ function loadGame() {
     showPanel('map');
     refreshUI();
     startGameLoop();
-    return { success: true, state, message: 'بازی بارگذاری شد (V3.5.0)' };
+    
+    if (!state.meta.version || state.meta.version < '3.8.0') {
+      if (!state.territories) state.territories = [];
+      if (!state.worldOwnership) state.worldOwnership = {};
+      if (!state.notifications) state.notifications = [];
+      if (state.notificationsUnread == null) state.notificationsUnread = 0;
+      if (typeof ensureNuclear === 'function') ensureNuclear(state);
+      if (typeof ensureIntel === 'function') ensureIntel(state);
+      state.meta.version = '3.8.0';
+    }
+    return { success: true, state, message: 'بازی بارگذاری شد (V3.8.0)' };
   } catch (err) {
     return { success: false, message: 'خطا در بارگذاری' };
   }

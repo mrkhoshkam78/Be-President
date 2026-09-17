@@ -1756,3 +1756,19 @@ body.theme-light .tip-row b { color: #0f172a; }
   .list-card, .game-card, .action-card { padding: 0.7rem; }
   .btn, .btn-sm { min-height: 40px; }
 }
+
+/* V3.8 light theme readability */
+body.theme-light {
+  --text: #0f172a;
+  --text-dim: #334155;
+  --text-muted: #475569;
+  --bg-deep: #e2e8f0;
+  --bg: #f1f5f9;
+  --bg-panel: #ffffff;
+  --border: #cbd5e1;
+}
+body.theme-light .stat-box .val { color: #0f172a; }
+body.theme-light .list-card, body.theme-light .section {
+  box-shadow: 0 1px 4px rgba(15,23,42,0.08);
+}
+body.theme-light .btn { color: #fff; }
