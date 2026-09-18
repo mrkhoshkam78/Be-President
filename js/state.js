@@ -47,7 +47,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '3.6.0',
+      version: '3.6.1',
       isRunning: false,
       speed: 1,
       tickCount: 0,

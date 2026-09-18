@@ -102,13 +102,7 @@ function startGameLoop() {
   gameInterval = setInterval(() => {
     const s = getState();
     if (!s || s.meta.speed === 0 || s.meta.gameOver) return;
-    // If pending event, keep paused
-    if (s.pendingEvent) {
-      s.meta.speed = 0;
-      setState(s);
-      /* modal disabled — use Notification Center */
-      return;
-    }
+    // Events use Notification Center — do not block the loop
     const ticks = s.meta.speed === 3 ? 3 : 1;
     for (let i = 0; i < ticks; i++) processTick();
     refreshUI();
@@ -125,10 +119,7 @@ function stopGameLoop() {
 function setSpeed(speed) {
   const state = getState();
   if (!state) return;
-  if (state.pendingEvent) {
-    showToast('ابتدا در مورد رویداد تصمیم بگیرید', 'warning');
-    return;
-  }
+  // pendingEvent no longer blocks speed — decide from Notification Center
   state.meta.speed = speed;
   setState(state);
   updateTimeControls(state);
@@ -207,11 +198,7 @@ function processTick() {
 
   setState(state);
 
-  if (state.pendingEvent) {
-    state.meta.speed = 0;
-    setState(state);
-    /* modal disabled — use Notification Center */
-  }
+  // Event decisions via Notification Center only
 }
 
 

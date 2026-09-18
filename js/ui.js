@@ -797,24 +797,39 @@ function buildActionControls(actionId) {
       return `<label>مبلغ سرمایه‌گذاری:</label>
         <input type="number" id="infra-amount-a" value="10" min="5" max="50" />`;
     case 'mil_budget': {
-      const mn = LIMITS?.milBudgetAmount?.min ?? 3, mx = LIMITS?.milBudgetAmount?.max ?? 45;
-      return `<label>بودجه نظامی: <span class="limit-label">${mn}–${mx}</span></label>
-        <input type="number" id="mil-budget-a" value="${state.military.budgetAmount || 12}" min="${mn}" max="${mx}" step="0.5" />`;
+      const cur = state.military.budgetAmount || 12;
+      const presets = [6,10,14,18,24,30];
+      return `<label>بودجه نظامی ماهانه (فعلی: ${cur})</label>
+        <input type="hidden" id="mil-budget-a" value="${cur}" />
+        <div class="mil-cost-row">${presets.map(p => `<button type="button" class="btn btn-sm ${p===cur?'btn-success':''}" onclick="document.getElementById('mil-budget-a').value=${p};this.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('btn-success'));this.classList.add('btn-success')">${p}</button>`).join('')}</div>`;
     }
     case 'develop_force': {
-      const army = state.military.army || 0;
       const mx = LIMITS?.army?.max ?? 100;
+      const budget = state.economy?.budget || 0;
+      const c1 = typeof calcMilDevCost === 'function' ? calcMilDevCost(state, 1) : 3;
+      const c5 = typeof calcMilDevCost === 'function' ? calcMilDevCost(state, 5) : 15;
+      const fm = typeof formatMoney === 'function' ? formatMoney : (n) => n;
       return `<label>نوع نیرو:</label>
         <select id="force-type-a">
-          <option value="army">ارتش (${army}/${mx})</option>
-          <option value="airForce">هوایی (${state.military.airForce||0}/${mx})</option>
-          <option value="navy">دریایی (${state.military.navy||0}/${mx})</option>
+          <option value="army">ارتش (${Math.round(state.military.army||0)}/${mx})</option>
+          <option value="airForce">هوایی (${Math.round(state.military.airForce||0)}/${mx})</option>
+          <option value="navy">دریایی (${Math.round(state.military.navy||0)}/${mx})</option>
+          <option value="defenseSystems">دفاع (${Math.round(state.military.defenseSystems||0)}/${mx})</option>
         </select>
-        <label>میزان:</label><input type="number" id="force-amount-a" value="8" min="3" max="20" />
-        ${isAtMax('army', army) && isAtMax('airForce', state.military.airForce) && isAtMax('navy', state.military.navy) ? '<p class="limit-max">همه نیروها در حداکثر هستند</p>' : ''}`;
+        <input type="hidden" id="force-amount-a" value="5" />
+        <div class="mil-cost-row" style="margin-top:0.5rem">
+          <button type="button" class="btn btn-sm btn-success" ${budget>=c1?'':'disabled'} onclick="document.getElementById('force-amount-a').value=5;document.getElementById('force-lvl-label').textContent='+1'">+1 (${fm(c1)})</button>
+          <button type="button" class="btn btn-sm" ${budget>=c5?'':'disabled'} onclick="document.getElementById('force-amount-a').value=25;document.getElementById('force-lvl-label').textContent='+5'">+5 (${fm(c5)})</button>
+          <span class="muted" id="force-lvl-label">+1</span>
+        </div>
+        <p class="muted" style="font-size:0.75rem">بودجه موجود: ${fm(budget)} — بدون ورود عدد دستی</p>`;
     }
     case 'research_mil':
-      return `<label>امتیاز تحقیق:</label><input type="number" id="research-points-a" value="5" min="2" max="15" />`;
+      return `<label>سطح تحقیق:</label>
+        <select id="research-points-a">
+          <option value="3">+1 سطح</option>
+          <option value="9">+3 سطح</option>
+        </select>`;
     case 'intel_budget': {
       const mn = LIMITS?.intelBudget?.min ?? 1, mx = LIMITS?.intelBudget?.max ?? 20;
       return `<label>بودجه اطلاعات: <span class="limit-label">${mn}–${mx}</span></label>
