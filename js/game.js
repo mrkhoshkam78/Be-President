@@ -37,10 +37,21 @@ function startPresidency() {
 }
 
 function startNewGame(difficultyId, countryId) {
-  if (typeof BePresidentBoot !== 'undefined') BePresidentBoot.assertReady();
-  if (!countryId || !(PLAYABLE_COUNTRIES || []).find(c => c.id === countryId)) {
+  var list = (typeof PLAYABLE_COUNTRIES !== 'undefined' && PLAYABLE_COUNTRIES)
+    ? PLAYABLE_COUNTRIES
+    : (typeof window !== 'undefined' && window.PLAYABLE_COUNTRIES) ? window.PLAYABLE_COUNTRIES : null;
+  if (!list || !list.length) {
+    console.error('[BePresident] PLAYABLE_COUNTRIES empty at startNewGame');
+    alert('داده کشورها بارگذاری نشده. صفحه را رفرش کنید و مطمئن شوید js/data.js لود شده است.');
+    return;
+  }
+  if (typeof BePresidentBoot !== 'undefined' && !BePresidentBoot.assertReady()) {
+    alert('اعتبارسنجی داده پایه ناموفق بود. Console را بررسی کنید.');
+    return;
+  }
+  if (!countryId || !list.find(function(c){ return c.id === countryId; })) {
     console.error('Invalid countryId', countryId);
-    showToast('کشور نامعتبر — دوباره انتخاب کنید', 'error');
+    if (typeof showToast === 'function') showToast('کشور نامعتبر — دوباره انتخاب کنید', 'error');
     return;
   }
   newGame(difficultyId, countryId);
@@ -87,9 +98,17 @@ function showStartScreen() {
 }
 
 function goToCountrySelect() {
-  $('start-screen').style.display = 'none';
-  $('screen-country').style.display = 'flex';
-  renderCountryCards();
+  var start = document.getElementById('start-screen');
+  var screen = document.getElementById('screen-country');
+  if (start) start.style.display = 'none';
+  if (screen) screen.style.display = 'flex';
+  try {
+    renderCountryCards();
+  } catch (err) {
+    console.error('[BePresident] renderCountryCards error', err);
+    var box = document.getElementById('country-cards');
+    if (box) box.innerHTML = '<p style="color:#f87171">خطا در نمایش کشورها: ' + (err && err.message ? err.message : err) + '</p>';
+  }
 }
 
 function startGameLoop() {
@@ -219,13 +238,20 @@ function checkGameOver(state) {
 
 function renderCountryCards() {
   const container = $('country-cards');
-  if (!container) return;
-  if (typeof PLAYABLE_COUNTRIES === 'undefined' || !PLAYABLE_COUNTRIES.length) {
-    container.innerHTML = '<p class="muted">خطا: داده کشورهای بارگذاری نشد. صفحه را رفرش کنید.</p>';
-    console.error('PLAYABLE_COUNTRIES missing');
+  if (!container) {
+    console.error('[BePresident] #country-cards not in DOM');
     return;
   }
-  container.innerHTML = PLAYABLE_COUNTRIES.map(c => {
+  var list = (typeof PLAYABLE_COUNTRIES !== 'undefined' && PLAYABLE_COUNTRIES && PLAYABLE_COUNTRIES.length)
+    ? PLAYABLE_COUNTRIES
+    : (typeof window !== 'undefined' && window.PLAYABLE_COUNTRIES) ? window.PLAYABLE_COUNTRIES : null;
+  if (!list || !list.length) {
+    container.innerHTML = '<p class="muted" style="color:#f87171;padding:1rem">خطا: داده کشورها بارگذاری نشد.<br>مسیر <code>js/data.js</code> را بررسی کنید و صفحه را رفرش کنید.</p>';
+    console.error('[BePresident] PLAYABLE_COUNTRIES missing at renderCountryCards', typeof PLAYABLE_COUNTRIES, typeof window !== 'undefined' ? typeof window.PLAYABLE_COUNTRIES : 'no window');
+    return;
+  }
+  console.info('[BePresident] Rendering', list.length, 'countries');
+  container.innerHTML = list.map(c => {
     const strengths = Array.isArray(c.strengths) ? c.strengths : [];
     const weaknesses = Array.isArray(c.weaknesses) ? c.weaknesses : [];
     const popM = ((c.population || 0) / 1e6).toFixed(0);

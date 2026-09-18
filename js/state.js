@@ -349,3 +349,11 @@ function modifyRelation(state, targetId, changes) {
 function clamp(v, min, max) {
   return Math.round(Math.max(min, Math.min(max, v)) * 10) / 10;
 }
+
+// Global exports for browser
+if (typeof window !== 'undefined') {
+  window.createInitialState = createInitialState;
+  window.getState = getState;
+  window.setState = setState;
+  window.resetState = typeof resetState === 'function' ? resetState : function(d,c){ return createInitialState(d,c); };
+}

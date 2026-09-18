@@ -1794,6 +1794,25 @@ const PLAYABLE_COUNTRIES = [
   }
 ];
 
+// Immediate global bind (before any later code can fail)
+if (typeof window !== 'undefined') {
+  window.PLAYABLE_COUNTRIES = PLAYABLE_COUNTRIES;
+} else if (typeof globalThis !== 'undefined') {
+  globalThis.PLAYABLE_COUNTRIES = PLAYABLE_COUNTRIES;
+}
+
+function deriveInterests(c) {
+  const interests = [];
+  if (c.resources.oil > 60 || c.resources.gas > 60) interests.push('energy');
+  if (c.economyPower > 70) interests.push('trade', 'finance');
+  if (c.militaryPower > 70) interests.push('military');
+  if (c.techLevel > 75) interests.push('tech');
+  if (c.resources.agriculture > 65) interests.push('agriculture');
+  if (c.resources.minerals > 60 || c.resources.rare_earth > 30) interests.push('resources');
+  if (interests.length === 0) interests.push('trade');
+  return [...new Set(interests)];
+}
+
 // All countries are in PLAYABLE_COUNTRIES. NPCs = others when player chooses one.
 const COUNTRIES = PLAYABLE_COUNTRIES.map(c => ({
   id: c.id,
@@ -1809,17 +1828,7 @@ const COUNTRIES = PLAYABLE_COUNTRIES.map(c => ({
   attitude: 50
 }));
 
-function deriveInterests(c) {
-  const interests = [];
-  if (c.resources.oil > 60 || c.resources.gas > 60) interests.push('energy');
-  if (c.economyPower > 70) interests.push('trade', 'finance');
-  if (c.militaryPower > 70) interests.push('military');
-  if (c.techLevel > 75) interests.push('tech');
-  if (c.resources.agriculture > 65) interests.push('agriculture');
-  if (c.resources.minerals > 60 || c.resources.rare_earth > 30) interests.push('resources');
-  if (interests.length === 0) interests.push('trade');
-  return [...new Set(interests)];
-}
+
 
 const RESOURCE_TYPES = [
   { id: 'oil', name: 'نفت', basePrice: 75, volatility: 0.15 },

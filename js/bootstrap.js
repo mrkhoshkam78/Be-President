@@ -97,8 +97,10 @@
       return true;
     },
     assertReady: function () {
-      if (!this.ready && !this.init()) throw new Error('Base data not ready');
-      return true;
+      if (this.ready) return true;
+      if (this.init()) return true;
+      console.error('[BePresident] Base data not ready', this.report);
+      return false;
     }
   };
 
