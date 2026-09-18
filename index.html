@@ -4,7 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Be President — Strategy Simulator</title>
+  <!-- Multiple CSS paths for compatibility (folder Css/css + root fallback) -->
   <link rel="stylesheet" href="Css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <style id="critical-fallback">
+    /* Critical styles if external CSS fails to load */
+    body{margin:0;font-family:system-ui,Tahoma,sans-serif;background:#0c1220;color:#e8eef8;direction:rtl;min-height:100vh}
+    .start-screen,.select-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;text-align:center}
+    .start-screen h1{font-size:2.5rem;margin:0 0 .5rem;color:#38bdf8}
+    .subtitle{color:#8b9cb8;margin-bottom:1.5rem}
+    .btn-main{background:#2563eb;color:#fff;border:none;padding:.9rem 2rem;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer}
+    .btn-ghost{background:transparent;border:1px solid #2a3f5f;color:#8b9cb8;padding:.7rem 1.4rem;border-radius:10px;cursor:pointer;margin-top:.6rem}
+    .country-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem;width:min(900px,100%);max-height:50vh;overflow:auto}
+    .country-card{background:#1a2336;border:1px solid #1e2d45;border-radius:12px;padding:1rem;cursor:pointer;text-align:center}
+    #game-container{display:none}
+    .toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:#1a2336;padding:.7rem 1.2rem;border-radius:8px;display:none}
+    .toast.show{display:block}
+  </style>
 </head>
 <body>
 
@@ -502,26 +519,60 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="js/data.js"></script>
-<script src="js/bootstrap.js"></script>
-<script src="js/state.js"></script>
-<script src="js/limits.js"></script>
-<script src="js/strength.js"></script>
-<script src="js/upgrades.js"></script>
-<script src="js/notifications.js"></script>
-<script src="js/production.js"></script>
-<script src="js/economy.js"></script>
-<script src="js/military.js"></script>
-<script src="js/intelligence.js"></script>
-<script src="js/diplomacy.js"></script>
-<script src="js/wars.js"></script>
-<script src="js/alliances.js"></script>
-<script src="js/crisis.js"></script>
-<script src="js/election.js"></script>
-<script src="js/events.js"></script>
-<script src="js/advisor.js"></script>
-<script src="js/save.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/game.js"></script>
+<script src="js/data.js" onerror="this.onerror=null;this.src='data.js'"></script>
+<script src="js/bootstrap.js" onerror="this.onerror=null;this.src='bootstrap.js'"></script>
+<script src="js/state.js" onerror="this.onerror=null;this.src='state.js'"></script>
+<script src="js/limits.js" onerror="this.onerror=null;this.src='limits.js'"></script>
+<script src="js/strength.js" onerror="this.onerror=null;this.src='strength.js'"></script>
+<script src="js/upgrades.js" onerror="this.onerror=null;this.src='upgrades.js'"></script>
+<script src="js/notifications.js" onerror="this.onerror=null;this.src='notifications.js'"></script>
+<script src="js/production.js" onerror="this.onerror=null;this.src='production.js'"></script>
+<script src="js/economy.js" onerror="this.onerror=null;this.src='economy.js'"></script>
+<script src="js/military.js" onerror="this.onerror=null;this.src='military.js'"></script>
+<script src="js/intelligence.js" onerror="this.onerror=null;this.src='intelligence.js'"></script>
+<script src="js/diplomacy.js" onerror="this.onerror=null;this.src='diplomacy.js'"></script>
+<script src="js/wars.js" onerror="this.onerror=null;this.src='wars.js'"></script>
+<script src="js/alliances.js" onerror="this.onerror=null;this.src='alliances.js'"></script>
+<script src="js/crisis.js" onerror="this.onerror=null;this.src='crisis.js'"></script>
+<script src="js/election.js" onerror="this.onerror=null;this.src='election.js'"></script>
+<script src="js/events.js" onerror="this.onerror=null;this.src='events.js'"></script>
+<script src="js/advisor.js" onerror="this.onerror=null;this.src='advisor.js'"></script>
+<script src="js/save.js" onerror="this.onerror=null;this.src='save.js'"></script>
+<script src="js/ui.js" onerror="this.onerror=null;this.src='ui.js'"></script>
+<script src="js/game.js" onerror="this.onerror=null;this.src='game.js'"></script>
+
+<script>
+(function(){
+  function check(){
+    var issues=[];
+    // CSS loaded? check computed style on body
+    var bg=getComputedStyle(document.body).backgroundColor;
+    if(bg==="rgba(0, 0, 0, 0)"||bg==="transparent"||bg==="rgb(255, 255, 255)"){
+      issues.push("CSS ممکن است لود نشده باشد (background default)");
+    }
+    if(typeof PLAYABLE_COUNTRIES==="undefined"){
+      issues.push("js/data.js لود نشد — PLAYABLE_COUNTRIES تعریف نشده");
+    }
+    if(typeof createInitialState==="undefined"){
+      issues.push("js/state.js لود نشد");
+    }
+    if(typeof initApp==="undefined" && typeof goToCountrySelect==="undefined"){
+      issues.push("js/game.js لود نشد");
+    }
+    if(issues.length){
+      console.error("[BePresident] Asset load issues:", issues);
+      var box=document.createElement("div");
+      box.style.cssText="position:fixed;bottom:0;left:0;right:0;background:#7f1d1d;color:#fff;padding:12px;z-index:99999;font-family:sans-serif;font-size:13px;direction:rtl";
+      box.innerHTML="<b>خطای بارگذاری فایل‌ها:</b> "+issues.join(" | ")+
+        "<br>مطمئن شوید کل پوشه ZIP را استخراج کرده‌اید و index.html را از ریشه پروژه باز کرده‌اید (کنار پوشه‌های js و Css).";
+      document.body.appendChild(box);
+    } else {
+      console.info("[BePresident] Assets OK — countries:", typeof PLAYABLE_COUNTRIES!=="undefined"?PLAYABLE_COUNTRIES.length:"?");
+    }
+  }
+  if(document.readyState==="complete") setTimeout(check,100);
+  else window.addEventListener("load", function(){ setTimeout(check,100); });
+})();
+</script>
 </body>
 </html>
