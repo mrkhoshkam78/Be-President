@@ -279,17 +279,12 @@ function endWar(state, warId, result) {
   var idx = state.wars.findIndex(function(x) { return x.id === warId; });
   if (idx < 0) return;
   var w = state.wars[idx];
-  if (w._resolved) return; // prevent double resolve
-  w._resolved = true;
   w.status = 'peace'; w.result = result;
   state.warHistory = state.warHistory || [];
   state.warHistory.push(Object.assign({}, w, { endYear: state.time.year }));
   if (result === 'victory') {
     state.population.satisfaction = Math.min(95, (state.population.satisfaction || 50) + 5);
     state.president.xp = (state.president.xp || 0) + 35;
-    if (typeof applyConquest === 'function') {
-      applyConquest(state, w.opponent, w);
-    }
   } else if (result === 'defeat') {
     state.population.satisfaction = Math.max(10, (state.population.satisfaction || 50) - 10);
     state.economy.gdpGrowth -= 0.8;
@@ -297,77 +292,7 @@ function endWar(state, warId, result) {
   }
   state.wars.splice(idx, 1);
   if (typeof pushNotification === 'function') {
-    pushNotification(state, { severity: result === 'victory' ? 'success' : 'warning', category: 'war', title: result === 'victory' ? 'پیروزی و الحاق' : 'پایان جنگ', body: 'جنگ با ' + w.opponentName + ' پایان یافت.' + (result === 'victory' ? ' قلمرو ضمیمه شد.' : '') });
-  }
-}
-
-/** Transfer defeated country into player territories + loot (once). */
-function applyConquest(state, opponentId, war) {
-  if (!opponentId) return;
-  state.territories = state.territories || [];
-  if (state.territories.some(function(t) { return t.id === opponentId; })) return; // already owned
-
-  var c = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : []).find(function(x) { return x.id === opponentId; });
-  if (!c) return;
-
-  // Annex
-  state.territories.push({
-    id: opponentId,
-    name: c.name,
-    flag: c.flag,
-    annexedYear: state.time.year,
-    annexedMonth: state.time.month,
-    population: c.population,
-    baseGDP: c.baseGDP
-  });
-
-  // Population / GDP gains (partial — occupation efficiency)
-  var popGain = Math.round((c.population || 0) * 0.35);
-  var gdpGain = Math.round((c.baseGDP || 0) * 0.25 * 10) / 10;
-  state.country.population = (state.country.population || 0) + popGain;
-  state.economy.gdp = Math.round((state.economy.gdp + gdpGain) * 10) / 10;
-
-  // Resource loot
-  if (c.resources && state.resources) {
-    Object.keys(c.resources).forEach(function(k) {
-      state.resources[k] = Math.min(100, (state.resources[k] || 0) + Math.round((c.resources[k] || 0) * 0.2));
-    });
-  }
-
-  // War reparations
-  var reparations = Math.round((c.baseBudget || 10) * 1.5 * 10) / 10;
-  state.economy.budget = Math.round((state.economy.budget + reparations) * 10) / 10;
-
-  // Military equipment salvage
-  if (state.military && state.military.equipment) {
-    state.military.equipment.tanks = (state.military.equipment.tanks || 0) + Math.round(2 + Math.random() * 5);
-    state.military.equipment.missiles = (state.military.equipment.missiles || 0) + Math.round(1 + Math.random() * 3);
-  }
-
-  // Clear relations / agreements / alliances involving opponent
-  if (state.diplomacy) {
-    if (state.diplomacy.relations) delete state.diplomacy.relations[opponentId];
-    state.diplomacy.agreements = (state.diplomacy.agreements || []).filter(function(a) {
-      return a.target !== opponentId && a.targetId !== opponentId;
-    });
-    state.diplomacy.sanctions = (state.diplomacy.sanctions || []).filter(function(s) {
-      return s.from !== opponentId && s.to !== opponentId;
-    });
-  }
-  if (state.alliances) {
-    ['military', 'economic'].forEach(function(k) {
-      (state.alliances[k] || []).forEach(function(a) {
-        if (a.members) a.members = a.members.filter(function(m) { return m !== opponentId; });
-      });
-    });
-  }
-
-  // World ownership map for map coloring
-  state.worldOwnership = state.worldOwnership || {};
-  state.worldOwnership[opponentId] = state.country.id;
-
-  if (typeof logAction === 'function') {
-    logAction(state, 'الحاق ' + c.name + ' — غرامت ' + reparations + '، GDP +' + gdpGain);
+    pushNotification(state, { severity: result === 'victory' ? 'success' : 'warning', category: 'war', title: result === 'victory' ? 'پیروزی' : 'پایان جنگ', body: 'جنگ با ' + w.opponentName + ' پایان یافت.' });
   }
 }
 
@@ -388,7 +313,6 @@ window.executeMilitaryAction = executeMilitaryAction;
 window.updateWars = updateWars;
 window.proposeCeasefire = proposeCeasefire;
 window.endWar = endWar;
-window.applyConquest = applyConquest;
 window.getCountryLeaders = getCountryLeaders;
 window.ensureEquipment = ensureEquipment;
 window.getWarDifficultyMods = getWarDifficultyMods;

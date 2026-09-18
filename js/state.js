@@ -47,7 +47,7 @@ function createInitialState(difficultyId, countryId) {
       countryId: country.id,
       startedAt: Date.now(),
       lastSaved: null,
-      version: '3.8.0',
+      version: '3.6.0',
       isRunning: false,
       speed: 1,
       tickCount: 0,
@@ -235,9 +235,6 @@ function createInitialState(difficultyId, countryId) {
     },
     notifications: [],
     notificationsUnread: 0,
-    territories: [],
-    worldOwnership: {},
-    nuclear: null,
     derived: { strengths: [], weaknesses: [] }
   };
 }

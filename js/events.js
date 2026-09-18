@@ -31,10 +31,19 @@ function processEvents(state) {
 }
 
 function triggerEvent(state, template) {
-  // If event has choices, put it in pending for modal
+  const eventId = template.id + '_' + Date.now();
+  const severity = template.type === 'positive' ? 'success'
+    : (template.type === 'crisis' || template.type === 'danger' ? 'critical' : 'warning');
+
+  // Dedup: skip if same template notified recently
+  if (state.notifications && state.notifications.some(n =>
+    n.templateId === template.id && (state.time.totalDays - (n.day || 0)) < 2)) {
+    return state;
+  }
+
   if (template.choices && template.choices.length > 0) {
     state.pendingEvent = {
-      id: template.id + '_' + Date.now(),
+      id: eventId,
       templateId: template.id,
       title: template.title,
       description: template.description,
@@ -43,28 +52,51 @@ function triggerEvent(state, template) {
       day: state.time.totalDays,
       choices: template.choices
     };
-    // Pause time while deciding
-    state.meta.speed = 0;
+    // Do NOT pause and do NOT open modal — notify only
+    if (typeof pushNotification === 'function') {
+      pushNotification(state, {
+        id: 'evt_' + eventId,
+        category: 'Domestic',
+        severity: severity,
+        title: (template.icon || '📢') + ' ' + template.title,
+        body: template.description,
+        line2: 'برای تصمیم‌گیری از مرکز اعلان‌ها اقدام کنید',
+        templateId: template.id,
+        day: state.time.totalDays,
+        year: state.time.year,
+        month: state.time.month,
+        pendingEventId: eventId,
+        choices: template.choices.map(ch => ({ id: ch.id, label: ch.label }))
+      });
+    }
     return state;
   }
 
-  // Fallback direct effect (legacy)
   const event = {
-    id: template.id + '_' + Date.now(),
+    id: eventId,
     title: template.title,
     description: template.description,
     type: template.type,
     day: state.time.totalDays,
-    effects: { ...template.effects }
+    effects: { ...(template.effects || {}) }
   };
   applyEventEffects(state, event.effects);
   state.events.unshift(event);
   if (state.events.length > 15) state.events.pop();
-  state.alerts.unshift({
-    type: template.type === 'positive' ? 'success' : 'danger',
-    text: `رویداد: ${template.title}`
-  });
-  logAction(state, `رویداد: ${template.title}`);
+  if (typeof pushNotification === 'function') {
+    pushNotification(state, {
+      id: 'evt_' + eventId,
+      category: 'Domestic',
+      severity: severity,
+      title: (template.icon || '📢') + ' ' + template.title,
+      body: template.description,
+      templateId: template.id,
+      day: state.time.totalDays,
+      year: state.time.year,
+      month: state.time.month
+    });
+  }
+  logAction(state, 'رویداد: ' + template.title);
   return state;
 }
 

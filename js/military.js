@@ -162,3 +162,12 @@ function launchAttack(state, targetId) {
   updateMilitaryPowers(state);
   return { success: true, combatSuccess: success, state };
 }
+
+function setMilitaryBudget(state, amount) {
+  amount = Math.max(3, Math.min(45, Number(amount) || 12));
+  state.military.budgetAmount = Math.round(amount * 10) / 10;
+  if (typeof updateMilitaryPowers === 'function') updateMilitaryPowers(state);
+  logAction(state, 'بودجه نظامی ماهانه: ' + state.military.budgetAmount);
+  return state;
+}
+window.setMilitaryBudget = setMilitaryBudget;

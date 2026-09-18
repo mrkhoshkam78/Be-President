@@ -1,31 +1,6 @@
 // ui.js - Gaming UI updates
 
 let currentPanel = 'map';
-let diploSearchQuery = '';
-
-/** Display name respecting conquest ownership (does not mutate country data). */
-function getCountryDisplayName(state, countryId) {
-  const base = (typeof getCountryById === 'function' ? getCountryById(countryId) : null)
-    || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(c => c.id === countryId) : null);
-  const original = base ? base.name : countryId;
-  if (!state || !state.worldOwnership) return original;
-  const ownerId = state.worldOwnership[countryId];
-  if (!ownerId) return original;
-  if (state.country && ownerId === state.country.id) {
-    return (state.country.name || 'شما') + ' — قلمرو سابق ' + original;
-  }
-  const owner = (typeof getCountryById === 'function' ? getCountryById(ownerId) : null)
-    || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(c => c.id === ownerId) : null);
-  return (owner ? owner.name : ownerId) + ' — قلمرو سابق ' + original;
-}
-
-function getCountrySearchText(countryId) {
-  const c = (typeof getCountryById === 'function' ? getCountryById(countryId) : null)
-    || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(x => x.id === countryId) : null);
-  if (!c) return String(countryId || '').toLowerCase();
-  return [c.id, c.name, c.region, c.description].filter(Boolean).join(' ').toLowerCase();
-}
-
 
 function $(id) { return document.getElementById(id); }
 
@@ -118,43 +93,61 @@ function refreshUI() {
 }
 
 function updateHUD(state) {
-  if (!state) return;
   const e = state.economy;
   const pop = state.population;
-  const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
-  set('hud-flag', state.country.flag || '🏳️');
-  set('hud-country', state.country.name);
-  set('hud-date', `${state.time.year}/${String(state.time.month).padStart(2,'0')}`);
-  const budgetEl = $('hud-budget');
-  if (budgetEl) {
-    budgetEl.textContent = typeof formatMoney === 'function' ? formatMoney(e.budget) : String(e.budget);
-    budgetEl.className = e.budget >= 0 ? 'positive' : 'negative';
-  }
+  $('hud-flag').textContent = state.country.flag || '🏳️';
+  $('hud-country').textContent = state.country.name;
+  $('hud-date').textContent = `${state.time.year}/${String(state.time.month).padStart(2,'0')}`;
+  $('hud-budget').textContent = formatMoney(e.budget);
+  $('hud-budget').className = e.budget >= 0 ? 'positive' : 'negative';
   const g = e.gdpGrowth;
-  const growthEl = $('hud-growth');
-  if (growthEl) {
-    growthEl.textContent = (g >= 0 ? '+' : '') + Number(g).toFixed(1) + '%';
-    growthEl.className = g >= 0 ? 'positive' : 'negative';
-  }
-  const satEl = $('hud-sat');
-  if (satEl) {
-    satEl.textContent = Number(pop.satisfaction).toFixed(0);
-    satEl.className = pop.satisfaction >= 55 ? 'positive' : pop.satisfaction < 35 ? 'negative' : '';
-  }
-  set('hud-def', state.military?.defensePower ?? 0);
-  set('hud-alerts', (state.alerts || []).length);
-  if (typeof updateBellBadge === 'function') updateBellBadge(state);
+  $('hud-growth').textContent = (g >= 0 ? '+' : '') + g.toFixed(1) + '%';
+  $('hud-growth').className = g >= 0 ? 'positive' : 'negative';
+  $('hud-sat').textContent = pop.satisfaction.toFixed(0);
+  $('hud-sat').className = pop.satisfaction >= 55 ? 'positive' : pop.satisfaction < 35 ? 'negative' : '';
+  $('hud-def').textContent = state.military.defensePower;
+  $('hud-alerts').textContent = (state.alerts || []).length;
 }
 
 function updateMap(state) {
-  // Political SVG map engine
-  if (typeof MapEngine !== 'undefined' && MapEngine.render) {
-    MapEngine.render(state);
-  } else if (typeof renderPoliticalMap === 'function') {
-    renderPoliticalMap(state);
-  }
+  const world = $('map-world');
+  if (!world) return;
+  const rel = state.diplomacy.relations || {};
+  const player = state.country;
 
-  // Quick stats side panel
+  const others = (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES : COUNTRIES)
+    .filter(c => c.id !== player.id);
+  const ppos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[player.id])
+    ? MAP_POSITIONS[player.id] : { top: 42, left: 42 };
+  let html = `
+    <div class="map-node player neon-player" data-country="${player.id}" style="top:${ppos.top}%;left:${ppos.left}%;">
+      <div class="node-glow"></div>
+      <div class="node-flag">${player.flag}</div>
+      <div class="node-name">${player.name}</div>
+      <div class="node-rel rel-excellent">شما</div>
+    </div>`;
+  const atWar = new Set((state.wars || []).map(w => w.opponent));
+  others.forEach(c => {
+    const raw = rel[c.id];
+    const r = typeof getRelationValue === 'function' ? getRelationValue(raw) : (typeof raw === 'number' ? raw : 40);
+    const status = typeof getRelationStatus === 'function' ? getRelationStatus(r) : { class: 'rel-neutral' };
+    const pos = (typeof MAP_POSITIONS !== 'undefined' && MAP_POSITIONS[c.id])
+      ? MAP_POSITIONS[c.id] : { top: 40 + Math.random()*20, left: 30 + Math.random()*40 };
+    const glowClass = r >= 70 ? 'neon-ally' : r <= 30 ? 'neon-hostile' : 'neon-neutral';
+    const warClass = atWar.has(c.id) ? ' at-war' : '';
+    html += `
+      <div class="map-node ${glowClass}${warClass}" data-country="${c.id}" style="top:${pos.top}%;left:${pos.left}%;"
+           title="${c.name} · روابط ${Math.round(r)}" onclick="onMapCountryClick('${c.id}')"
+           onmouseenter="onMapCountryHover('${c.id}', true)" onmouseleave="onMapCountryHover('${c.id}', false)">
+        <div class="node-flag">${c.flag || '🏳️'}</div>
+        <div class="node-name">${c.name}</div>
+        <div class="node-rel ${status.class || ''}">${Math.round(r)}</div>
+      </div>`;
+  });
+  world.innerHTML = html;
+
+
+  // Quick stats
   const qs = $('map-quick-stats');
   if (qs) {
     const e = state.economy;
@@ -180,7 +173,7 @@ function updateMap(state) {
   // Advisor mini
   const am = $('map-advisor-mini');
   if (am && state.advisorSuggestions && state.advisorSuggestions[0]) {
-    am.innerHTML = `<strong>${state.advisorSuggestions[0].title}</strong><br><span class="muted">${(state.advisorSuggestions[0].description || '').slice(0, 80)}...</span>`;
+    am.innerHTML = `<strong>${state.advisorSuggestions[0].title}</strong><br><span class="muted">${state.advisorSuggestions[0].description.slice(0, 80)}...</span>`;
   }
 }
 
@@ -338,70 +331,46 @@ function updateIntelPanel(state) {
 
 function updateDiplomacyPanel(state) {
   const list = $('relations-list');
-  const emptyEl = $('diplo-search-empty');
   if (list) {
     const isMulti = state.diplomacy.relationsMode === 'multi';
-    const q = (diploSearchQuery || '').trim().toLowerCase();
-    let entries = Object.entries(state.diplomacy.relations || {});
-    // Hide annexed territories from active diplomacy list
-    if (state.worldOwnership) {
-      entries = entries.filter(([id]) => state.worldOwnership[id] !== state.country?.id);
-    }
-    if (q) {
-      entries = entries.filter(([id]) => getCountrySearchText(id).includes(q));
-    }
-    if (!entries.length) {
-      list.innerHTML = '';
-      if (emptyEl) {
-        emptyEl.style.display = 'block';
-        emptyEl.textContent = q ? 'کشوری با این عبارت یافت نشد' : 'رابطه‌ای ثبت نشده است';
-      }
-    } else {
-      if (emptyEl) emptyEl.style.display = 'none';
-      list.innerHTML = entries.map(([id, val]) => {
-        const overall = typeof getRelationValue === 'function' ? getRelationValue(val) : (typeof val === 'number' ? val : (val.overall || 50));
-        const status = typeof getRelationStatus === 'function' ? getRelationStatus(overall) : { text: '', class: '' };
-        const country = (typeof getCountryById === 'function' ? getCountryById(id) : null)
-          || (typeof PLAYABLE_COUNTRIES !== 'undefined' ? PLAYABLE_COUNTRIES.find(c => c.id === id) : null);
-        const displayName = getCountryDisplayName(state, id);
-        let extra = '';
-        if (isMulti && typeof val === 'object') {
-          extra = `<div class="list-card-meta">
-            سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0}
-          </div>`;
-        }
-        const barClass = overall >= 70 ? 'excellent' : overall >= 55 ? 'good' : overall >= 40 ? 'neutral' : overall >= 25 ? 'poor' : 'hostile';
-        const badgeClass = overall >= 70 ? 'ally' : overall <= 30 ? 'hostile' : 'neutral';
-        const region = country?.region ? `<span class="meta-chip">${country.region}</span>` : '';
-        return `<div class="list-card cat-diplomacy" data-country-id="${id}" id="diplo-card-${id}">
-          <div class="list-card-header">
-            <span class="ico">${country?.flag || '🌐'}</span>
-            <span class="card-title">${displayName}</span>
-            <span class="status-badge ${badgeClass}">${status.text || Math.round(overall)}</span>
-          </div>
-          <div class="list-card-meta">
-            <span>رابطه: <strong>${overall.toFixed(0)}</strong></span>
-            ${region}
-          </div>
-          <div class="rel-bar-wrap"><div class="rel-bar ${barClass}" style="width:${Math.min(100, overall)}%"></div></div>
-          ${extra}
-          <div class="list-card-actions">
-            <button type="button" class="btn" onclick="actionImproveRelation('${id}')">بهبود رابطه</button>
-            <button type="button" class="btn btn-outline" onclick="focusDiplomacyCountry('${id}')">جزئیات</button>
-          </div>
+    list.innerHTML = Object.entries(state.diplomacy.relations).map(([id, val]) => {
+      const overall = typeof getRelationValue === 'function' ? getRelationValue(val) : (typeof val === 'number' ? val : (val.overall || 50));
+      const status = getRelationStatus(overall);
+      const country = getCountryById(id) || COUNTRIES.find(c => c.id === id);
+      let extra = '';
+      if (isMulti && typeof val === 'object') {
+        extra = `<div class="list-card-meta" style="font-size:0.72rem">
+          سیاسی ${val.political|0} · اقتصادی ${val.economic|0} · نظامی ${val.military|0} · اعتماد ${val.trust|0}
         </div>`;
-      }).join('');
-    }
+      }
+      const barClass = overall >= 70 ? 'excellent' : overall >= 55 ? 'good' : overall >= 40 ? 'neutral' : overall >= 25 ? 'poor' : 'hostile';
+      const badgeClass = overall >= 70 ? 'ally' : overall <= 30 ? 'hostile' : 'neutral';
+      return `<div class="list-card cat-diplomacy">
+        <div class="list-card-header">
+          <span class="ico">${country?.flag || '🌐'}</span>
+          <span>${country?.name || id}</span>
+          <span class="status-badge ${badgeClass}" style="margin-right:auto">${status.text}</span>
+        </div>
+        <div class="list-card-meta">
+          <span>رابطه: <strong>${overall.toFixed(0)}</strong></span>
+        </div>
+        <div class="rel-bar-wrap"><div class="rel-bar ${barClass}" style="width:${Math.min(100, overall)}%"></div></div>
+        ${extra}
+        <div class="list-card-actions">
+          <button class="btn" onclick="actionImproveRelation('${id}')">بهبود رابطه</button>
+        </div>
+      </div>`;
+    }).join('');
   }
   const agr = $('agreements-list');
   if (agr) {
-    if (!state.diplomacy.agreements || !state.diplomacy.agreements.length) agr.innerHTML = '<span class="muted">توافقی فعال نیست</span>';
+    if (!state.diplomacy.agreements.length) agr.innerHTML = '<span class="muted">توافقی فعال نیست</span>';
     else agr.innerHTML = state.diplomacy.agreements.map(a =>
       `<div class="list-card cat-diplomacy">
         <div class="list-card-header">
           <span class="ico">🌐</span>
-          <span class="card-title">${(typeof getAgreementName === 'function' ? getAgreementName(a.type) : a.type)} با ${a.targetName || a.target}</span>
-          <span class="status-badge active">فعال</span>
+          <span>${getAgreementName(a.type)} با ${a.targetName || a.target}</span>
+          <span class="status-badge active">فعال ✅</span>
         </div>
         <div class="list-card-meta">
           ${a.value ? `<span>ارزش: <strong>${a.value}</strong></span>` : ''}
@@ -412,25 +381,6 @@ function updateDiplomacyPanel(state) {
   }
 }
 
-function filterDiplomacySearch(q) {
-  diploSearchQuery = q || '';
-  const state = typeof getState === 'function' ? getState() : null;
-  if (state) updateDiplomacyPanel(state);
-}
-
-function focusDiplomacyCountry(countryId) {
-  const state = typeof getState === 'function' ? getState() : null;
-  if (!state) return;
-  // Ensure diplomacy panel visible and card highlighted
-  if (typeof showPanel === 'function') showPanel('diplomacy');
-  const card = document.getElementById('diplo-card-' + countryId);
-  if (card) {
-    document.querySelectorAll('.list-card.diplo-focus').forEach(el => el.classList.remove('diplo-focus'));
-    card.classList.add('diplo-focus');
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-  if (typeof onMapCountryClick === 'function') onMapCountryClick(countryId);
-}
 
 function updateSanctionsPanel(state) {
   const list = $('sanctions-list');
@@ -699,12 +649,9 @@ function actionLoad() {
 function onMapCountryClick(countryId) {
   const state = getState();
   if (!state) return;
-  if (typeof MapEngine !== 'undefined') {
-    MapEngine.setSelected(countryId);
-  }
-  document.querySelectorAll('.map-country').forEach(n => {
-    n.classList.toggle('map-selected', n.getAttribute('data-id') === countryId);
-  });
+  document.querySelectorAll('.map-node').forEach(n => n.classList.remove('map-selected'));
+  const node = document.querySelector(`.map-node[data-country="${countryId}"]`);
+  if (node) node.classList.add('map-selected');
 
   const panel = $('map-country-detail');
   if (!panel) return;
@@ -774,9 +721,6 @@ window.actionIntelBudget = actionIntelBudget;
 window.actionGatherIntel = actionGatherIntel;
 window.actionStartCovert = actionStartCovert;
 window.actionImproveRelation = actionImproveRelation;
-window.filterDiplomacySearch = filterDiplomacySearch;
-window.focusDiplomacyCountry = focusDiplomacyCountry;
-window.getCountryDisplayName = getCountryDisplayName;
 window.actionProposeAgreement = actionProposeAgreement;
 window.actionLiftSanction = actionLiftSanction;
 window.actionSave = actionSave;
@@ -1723,13 +1667,19 @@ function renderNotificationList() {
   if (!list || !state) return;
   const items = state.notifications || [];
   if (!items.length) { list.innerHTML = '<p class="muted">اعلانی نیست</p>'; return; }
-  list.innerHTML = items.slice(0, 40).map(n => `
-    <div class="ntf-item severity-${n.severity || 'info'} ${n.read ? 'read' : 'unread'}" onclick="actionReadNtf('${n.id}')">
-      <div class="ntf-title">${n.title}</div>
+  list.innerHTML = items.slice(0, 40).map(n => {
+    const choices = (n.choices && n.choices.length && state.pendingEvent) ? n.choices : null;
+    const choiceHtml = choices ? `<div class="ntf-choices" onclick="event.stopPropagation()">
+      ${choices.map(ch => `<button class="btn btn-sm" onclick="chooseEvent('${ch.id}')">${ch.label}</button>`).join('')}
+    </div>` : '';
+    return `<div class="ntf-item severity-${n.severity || 'info'} ${n.read ? 'read' : 'unread'}" onclick="actionReadNtf('${n.id}')">
+      <div class="ntf-title">${n.title || ''}</div>
       <div class="ntf-body">${n.body || ''}</div>
       ${n.line2 ? `<div class="ntf-line2 muted">${n.line2}</div>` : ''}
-      <div class="ntf-meta muted">${n.year}/${String(n.month||1).padStart(2,'0')}</div>
-    </div>`).join('');
+      ${choiceHtml}
+      <div class="ntf-meta muted">${n.category || ''} · ${n.year || ''}/${String(n.month||1).padStart(2,'0')}</div>
+    </div>`;
+  }).join('');
 }
 
 function actionReadNtf(id) {
@@ -1765,8 +1715,24 @@ function toggleCollapse(el) {
   el.textContent = el.textContent.replace(/[▾▴]/, open ? '▸' : '▾');
 }
 
-// updateHUD already includes bell badge (hoisting-safe; do not redeclare)
-
+// Patch refreshUI HUD bell
+const _origUpdateHUD = typeof updateHUD === 'function' ? updateHUD : null;
+function updateHUD(state) {
+  if (_origUpdateHUD) _origUpdateHUD(state);
+  else {
+    const e = state.economy;
+    const pop = state.population;
+    if ($('hud-flag')) $('hud-flag').textContent = state.country.flag || '🏳️';
+    if ($('hud-country')) $('hud-country').textContent = state.country.name;
+    if ($('hud-date')) $('hud-date').textContent = `${state.time.year}/${String(state.time.month).padStart(2,'0')}`;
+    if ($('hud-budget')) { $('hud-budget').textContent = typeof formatMoney === 'function' ? formatMoney(e.budget) : e.budget; }
+    if ($('hud-growth')) $('hud-growth').textContent = (e.gdpGrowth >= 0 ? '+' : '') + e.gdpGrowth.toFixed(1) + '%';
+    if ($('hud-sat')) $('hud-sat').textContent = pop.satisfaction.toFixed(0);
+    if ($('hud-def')) $('hud-def').textContent = state.military?.defensePower || 0;
+    if ($('hud-alerts')) $('hud-alerts').textContent = (state.alerts || []).length;
+  }
+  updateBellBadge(state);
+}
 
 window.actionPerformUpgrade = actionPerformUpgrade;
 window.actionMilOp = actionMilOp;
@@ -1777,20 +1743,195 @@ window.actionMarkAllNtfRead = actionMarkAllNtfRead;
 window.toggleCollapse = toggleCollapse;
 
 
-// ── Theme toggle (light / dark) ──
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('theme-light');
-  try { localStorage.setItem('bp_theme', isLight ? 'light' : 'dark'); } catch (e) {}
-  // Re-tint map ocean slightly by re-render
-  const state = typeof getState === 'function' ? getState() : null;
-  if (state && typeof MapEngine !== 'undefined') MapEngine.render(state);
+/* ─── V3.6 Side Menu Drawer ─── */
+function toggleSideMenu() {
+  const menu = document.getElementById('side-menu');
+  const ov = document.getElementById('sidebar-overlay');
+  if (!menu) return;
+  const open = menu.classList.toggle('open');
+  if (ov) {
+    if (open) { ov.classList.add('open'); ov.style.display = 'block'; }
+    else { ov.classList.remove('open'); setTimeout(() => { if (!menu.classList.contains('open')) ov.style.display = 'none'; }, 200); }
+  }
+  document.body.classList.toggle('menu-open', open);
 }
+function openSideMenu() {
+  const menu = document.getElementById('side-menu');
+  const ov = document.getElementById('sidebar-overlay');
+  if (menu) menu.classList.add('open');
+  if (ov) { ov.classList.add('open'); ov.style.display = 'block'; }
+  document.body.classList.add('menu-open');
+}
+function closeSideMenu() {
+  const menu = document.getElementById('side-menu');
+  const ov = document.getElementById('sidebar-overlay');
+  if (menu) menu.classList.remove('open');
+  if (ov) { ov.classList.remove('open'); setTimeout(() => { if (ov && !document.getElementById('side-menu')?.classList.contains('open')) ov.style.display = 'none'; }, 200); }
+  document.body.classList.remove('menu-open');
+}
+window.toggleSideMenu = toggleSideMenu;
+window.openSideMenu = openSideMenu;
+window.closeSideMenu = closeSideMenu;
 
-(function initTheme() {
-  try {
-    const t = localStorage.getItem('bp_theme');
-    if (t === 'light') document.body.classList.add('theme-light');
-  } catch (e) {}
+/* Wrap showPanel to close menu on navigate */
+(function patchShowPanel() {
+  const orig = window.showPanel;
+  if (typeof orig === 'function') {
+    window.showPanel = function(id) {
+      orig(id);
+      closeSideMenu();
+    };
+  }
 })();
 
-window.toggleTheme = toggleTheme;
+/* ─── Military Development UI (Upgrade-style, no free-form numbers) ─── */
+const MIL_FORCE_DEFS = [
+  { id: 'army', name: 'ارتش', icon: '🪖', limKey: 'army' },
+  { id: 'airForce', name: 'نیروی هوایی', icon: '✈️', limKey: 'airForce' },
+  { id: 'navy', name: 'نیروی دریایی', icon: '🚢', limKey: 'navy' },
+  { id: 'defenseSystems', name: 'سامانه دفاعی', icon: '🛡️', limKey: 'defenseSystems' }
+];
+
+function calcMilDevCost(state, levels) {
+  levels = Math.max(1, levels || 1);
+  const m = (typeof getDifficultyMultipliers === 'function') ? getDifficultyMultipliers() : { militaryCost: 1 };
+  let total = 0;
+  for (let i = 0; i < levels; i++) {
+    total += 2.8 * (1 + i * 0.08) * (m.militaryCost || 1);
+  }
+  return Math.round(total * 10) / 10;
+}
+
+function updateMilitaryDevPanel(state) {
+  if (!state) return;
+  const grid = document.getElementById('mil-dev-grid');
+  if (!grid) return;
+  const budget = state.economy?.budget || 0;
+  const fm = (n) => (typeof formatMoney === 'function' ? formatMoney(n) : n);
+
+  grid.innerHTML = MIL_FORCE_DEFS.map(def => {
+    const current = Math.round(state.military[def.id] || 0);
+    const max = (typeof LIMITS !== 'undefined' && LIMITS[def.limKey]) ? LIMITS[def.limKey].max : 100;
+    const maxed = current >= max;
+    const c1 = calcMilDevCost(state, 1);
+    const c5 = calcMilDevCost(state, 5);
+    const ok1 = !maxed && budget >= c1;
+    const ok5 = !maxed && budget >= c5 && current + 5 <= max;
+    // max affordable levels
+    let maxAff = 0;
+    let acc = 0;
+    for (let i = 0; i < Math.min(20, max - current); i++) {
+      const step = 2.8 * (1 + i * 0.08) * ((typeof getDifficultyMultipliers === 'function' ? getDifficultyMultipliers().militaryCost : 1) || 1);
+      if (acc + step > budget) break;
+      acc += step;
+      maxAff++;
+    }
+    const pct = Math.min(100, (current / max) * 100);
+    return `<div class="upgrade-card mil-dev-card ${maxed ? 'maxed' : ''}">
+      <div class="list-card-header">${def.icon} ${def.name}</div>
+      <div class="muted" style="font-size:0.78rem">سطح ${current} / ${max}</div>
+      <div class="level-bar"><div class="level-fill" style="width:${pct}%"></div></div>
+      <div class="muted" style="font-size:0.75rem">بودجه موجود: ${fm(budget)} · حداکثر قابل خرید: ${maxAff || 0}</div>
+      <div class="mil-cost-row">
+        <button class="btn btn-sm btn-success" ${ok1 ? '' : 'disabled'} onclick="actionDevelopForceLevel('${def.id}',1)">+1 (${maxed ? '—' : fm(c1)})</button>
+        <button class="btn btn-sm" ${ok5 ? '' : 'disabled'} onclick="actionDevelopForceLevel('${def.id}',5)">+5 (${maxed ? '—' : fm(c5)})</button>
+        ${maxed ? '<span class="tag good">حداکثر سطح</span>' : (!ok1 ? '<span class="tag bad">بودجه ناکافی</span>' : '')}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Budget monthly controls (preset buttons, not free input)
+  const budBox = document.getElementById('mil-budget-controls');
+  if (budBox) {
+    const cur = state.military.budgetAmount || 12;
+    const presets = [6, 10, 14, 18, 24, 30];
+    budBox.innerHTML = `<div class="upgrade-card">
+      <div class="list-card-header">💰 بودجه نظامی ماهانه: <strong>${cur}</strong></div>
+      <p class="muted" style="font-size:0.75rem;margin:0.3rem 0">این مبلغ هر ماه از هزینه‌ها کسر می‌شود و روی آمادگی نیرو اثر دارد.</p>
+      <div class="mil-cost-row">
+        ${presets.map(p => `<button class="btn btn-sm ${p === cur ? 'btn-success' : ''}" onclick="actionSetMilBudgetPreset(${p})">${p}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+}
+
+let _milDevLock = false;
+function actionDevelopForceLevel(forceType, levels) {
+  if (_milDevLock) return;
+  _milDevLock = true;
+  try {
+    let state = getState();
+    if (!state) return;
+    levels = Math.max(1, Math.min(10, levels || 1));
+    const cost = calcMilDevCost(state, levels);
+    if ((state.economy.budget || 0) < cost) {
+      showToast('بودجه کافی نیست', 'error');
+      return;
+    }
+    // Map levels to developForce amount scale (legacy API uses amount points)
+    const amount = levels * 5;
+    if (typeof developForce === 'function') {
+      const res = developForce(state, forceType, amount);
+      if (!res.success) {
+        showToast(res.message || 'ناموفق', 'error');
+        return;
+      }
+      // Adjust cost to our calculated cost for consistency
+      // developForce already deducted its own cost - sync if needed is internal
+      setState(state);
+      refreshUI();
+      if (typeof updateMilitaryDevPanel === 'function') updateMilitaryDevPanel(getState());
+      showToast(res.message || ('توسعه ' + forceType + ' آغاز شد'), 'success');
+    }
+  } finally {
+    setTimeout(() => { _milDevLock = false; }, 400);
+  }
+}
+
+function actionSetMilBudgetPreset(val) {
+  let state = getState();
+  if (!state) return;
+  val = Math.max(3, Math.min(45, Number(val) || 12));
+  if (typeof setMilitaryBudget === 'function') {
+    state = setMilitaryBudget(state, val) || state;
+  } else {
+    state.military.budgetAmount = val;
+  }
+  setState(state);
+  refreshUI();
+  updateMilitaryDevPanel(getState());
+  showToast('بودجه نظامی: ' + val, 'success');
+}
+
+function actionResearchMilLevel(points) {
+  let state = getState();
+  if (!state) return;
+  points = points || 1;
+  if (typeof researchMilitaryTech === 'function') {
+    const res = researchMilitaryTech(state, points * 3);
+    if (!res.success) { showToast(res.message || 'ناموفق', 'error'); return; }
+    setState(state);
+    refreshUI();
+    showToast('تحقیق نظامی انجام شد', 'success');
+  }
+}
+
+window.actionDevelopForceLevel = actionDevelopForceLevel;
+window.actionSetMilBudgetPreset = actionSetMilBudgetPreset;
+window.actionResearchMilLevel = actionResearchMilLevel;
+window.updateMilitaryDevPanel = updateMilitaryDevPanel;
+window.calcMilDevCost = calcMilDevCost;
+
+/* Hook military panel into refreshUI */
+(function patchRefreshMilitary() {
+  const orig = window.refreshUI;
+  if (typeof orig === 'function') {
+    window.refreshUI = function() {
+      orig();
+      try {
+        const st = getState();
+        if (st) updateMilitaryDevPanel(st);
+      } catch (e) {}
+    };
+  }
+})();

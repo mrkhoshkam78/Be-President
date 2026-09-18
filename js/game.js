@@ -106,7 +106,7 @@ function startGameLoop() {
     if (s.pendingEvent) {
       s.meta.speed = 0;
       setState(s);
-      showEventModal(s.pendingEvent);
+      /* modal disabled — use Notification Center */
       return;
     }
     const ticks = s.meta.speed === 3 ? 3 : 1;
@@ -210,7 +210,7 @@ function processTick() {
   if (state.pendingEvent) {
     state.meta.speed = 0;
     setState(state);
-    showEventModal(state.pendingEvent);
+    /* modal disabled — use Notification Center */
   }
 }
 
@@ -262,20 +262,20 @@ function renderCountryCards() {
 }
 
 function showEventModal(pending) {
-  const modal = $('event-modal');
-  if (!modal || !pending) return;
-  $('event-icon').textContent = pending.icon || '📢';
-  $('event-title').textContent = pending.title;
-  $('event-desc').textContent = pending.description;
-  const choicesBox = $('event-choices');
-  choicesBox.innerHTML = pending.choices.map(c => `
-    <button class="event-choice-btn" onclick="chooseEvent('${c.id}')">
-      <strong>${c.label}</strong>
-      <span class="choice-pros">✓ ${c.pros}</span>
-      <span class="choice-cons">✗ ${c.cons}</span>
-    </button>
-  `).join('');
-  modal.classList.add('show');
+  // V3.6: Events go to Notification Center — no blocking modal
+  if (!pending) return;
+  const st = typeof getState === 'function' ? getState() : null;
+  if (st && typeof pushNotification === 'function') {
+    pushNotification(st, {
+      category: 'Domestic',
+      severity: pending.type === 'positive' ? 'success' : 'warning',
+      title: (pending.icon || '📢') + ' ' + pending.title,
+      body: pending.description,
+      line2: 'از مرکز اعلان‌ها تصمیم بگیرید',
+      pendingEventId: pending.id
+    });
+    if (typeof setState === 'function') setState(st);
+  }
 }
 
 function chooseEvent(choiceId) {
